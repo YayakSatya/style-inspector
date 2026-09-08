@@ -5,6 +5,7 @@
 
 import { generateMarkdownExport, generateSingleItemExport, copyToClipboard } from '../core/exporter.js';
 import { escapeHtml } from '../core/selector.js';
+import { rgbToHex } from '../core/styles.js';
 
 export class InspectorPanel {
   /**
@@ -348,6 +349,33 @@ export class InspectorPanel {
           </div>
         </div>
 
+        <!-- Colors Section -->
+        <div class="si-section">
+          <div class="si-section-header">
+            <span>Colors</span>
+          </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Text Color</span>
+            <div class="si-color-picker-wrap">
+              <input type="color" class="si-color-swatch" value="${rgbToHex(cur.color, '#ffffff')}" id="color-picker" title="Pick text color">
+              <input type="text" class="si-input-text"
+                     data-testid="style_inspector_panel_color_input"
+                     value="${escapeHtml(cur.color)}" id="color-input" placeholder="#ffffff or rgb(...)">
+            </div>
+          </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Background</span>
+            <div class="si-color-picker-wrap">
+              <input type="color" class="si-color-swatch" value="${rgbToHex(cur.backgroundColor, '#1e293b')}" id="bg-color-picker" title="Pick background color">
+              <input type="text" class="si-input-text"
+                     data-testid="style_inspector_panel_bg_color_input"
+                     value="${escapeHtml(cur.backgroundColor)}" id="bg-color-input" placeholder="transparent or #ffffff">
+            </div>
+          </div>
+        </div>
+
         <!-- Context & Notes Field -->
         <div class="si-section">
           <div class="si-section-header">
@@ -532,6 +560,31 @@ export class InspectorPanel {
         this.state.updateStyle(activeItem.id, 'textTransform', e.target.value);
       };
     }
+
+    // Color controls
+    const bindColor = (pickerId, inputId, prop) => {
+      const picker = this.panel.querySelector(pickerId);
+      const input = this.panel.querySelector(inputId);
+      if (!input) return;
+
+      if (picker) {
+        picker.oninput = (e) => {
+          input.value = e.target.value;
+          this.state.updateStyle(activeItem.id, prop, e.target.value);
+        };
+      }
+
+      input.oninput = (e) => {
+        const val = e.target.value.trim();
+        if (picker && val.startsWith('#') && (val.length === 7 || val.length === 4)) {
+          picker.value = rgbToHex(val, picker.value);
+        }
+        this.state.updateStyle(activeItem.id, prop, val);
+      };
+    };
+
+    bindColor('#color-picker', '#color-input', 'color');
+    bindColor('#bg-color-picker', '#bg-color-input', 'backgroundColor');
   }
 
   _initDraggable() {

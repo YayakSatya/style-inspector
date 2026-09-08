@@ -16,6 +16,36 @@ export function parsePx(val, fallback = 0) {
 }
 
 /**
+ * Convert rgb/rgba or hex string to 6-digit hex format (#rrggbb) for <input type="color">
+ * @param {string} colorStr
+ * @param {string} [fallback='#000000']
+ * @returns {string}
+ */
+export function rgbToHex(colorStr, fallback = '#000000') {
+  if (!colorStr || typeof colorStr !== 'string') return fallback;
+  const str = colorStr.trim();
+  if (str.startsWith('#')) {
+    if (str.length === 4) {
+      return `#${str[1]}${str[1]}${str[2]}${str[2]}${str[3]}${str[3]}`.toLowerCase();
+    }
+    if (str.length >= 7) {
+      return str.slice(0, 7).toLowerCase();
+    }
+  }
+  if (str === 'transparent' || str === 'rgba(0, 0, 0, 0)') {
+    return fallback;
+  }
+  const match = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (match) {
+    const r = Math.min(255, parseInt(match[1], 10)).toString(16).padStart(2, '0');
+    const g = Math.min(255, parseInt(match[2], 10)).toString(16).padStart(2, '0');
+    const b = Math.min(255, parseInt(match[3], 10)).toString(16).padStart(2, '0');
+    return `#${r}${g}${b}`.toLowerCase();
+  }
+  return fallback;
+}
+
+/**
  * Reads initial style baseline for the target element.
  * @param {Element} element
  * @param {Window} [win]
@@ -83,6 +113,10 @@ export function readElementStyles(element, win = (typeof window !== 'undefined' 
   // Text transform
   const textTransform = computed.textTransform || 'none';
 
+  // Colors
+  const color = computed.color || 'rgb(0, 0, 0)';
+  const backgroundColor = computed.backgroundColor || 'transparent';
+
   return {
     paddingTop,
     paddingRight,
@@ -98,7 +132,9 @@ export function readElementStyles(element, win = (typeof window !== 'undefined' 
     lineHeightUnit,
     letterSpacing,
     fontWeight,
-    textTransform
+    textTransform,
+    color,
+    backgroundColor
   };
 }
 
@@ -121,7 +157,9 @@ export function createDefaultStyles() {
     lineHeightUnit: 'unitless',
     letterSpacing: 0,
     fontWeight: '400',
-    textTransform: 'none'
+    textTransform: 'none',
+    color: 'rgb(0, 0, 0)',
+    backgroundColor: 'transparent'
   };
 }
 
@@ -143,7 +181,8 @@ export function captureOriginalInline(element) {
     'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
     'gap', 'row-gap', 'column-gap',
     'font-size', 'line-height', 'letter-spacing',
-    'font-weight', 'text-transform'
+    'font-weight', 'text-transform',
+    'color', 'background-color'
   ];
 
   const saved = {};
@@ -178,14 +217,16 @@ export function applyStyleProperty(element, prop, val, unit = 'px') {
     lineHeight: 'line-height',
     letterSpacing: 'letter-spacing',
     fontWeight: 'font-weight',
-    textTransform: 'text-transform'
+    textTransform: 'text-transform',
+    color: 'color',
+    backgroundColor: 'background-color'
   };
 
   const cssProp = cssPropMap[prop];
   if (!cssProp) return;
 
   let formattedVal = val;
-  if (prop === 'lineHeight' || prop === 'fontWeight' || prop === 'textTransform') {
+  if (prop === 'lineHeight' || prop === 'fontWeight' || prop === 'textTransform' || prop === 'color' || prop === 'backgroundColor') {
     formattedVal = typeof val === 'number' ? `${val}` : val;
   } else {
     formattedVal = `${val}${unit}`;
@@ -357,6 +398,24 @@ export function computeStyleDiff(baseline, current) {
       property: 'text-transform',
       before: `${baseline.textTransform}`,
       after: `${current.textTransform}`
+    });
+  }
+
+  // 9. Font Color
+  if (baseline.color && current.color && baseline.color !== current.color) {
+    diffs.push({
+      property: 'color',
+      before: `${baseline.color}`,
+      after: `${current.color}`
+    });
+  }
+
+  // 10. Background Color
+  if (baseline.backgroundColor && current.backgroundColor && baseline.backgroundColor !== current.backgroundColor) {
+    diffs.push({
+      property: 'background-color',
+      before: `${baseline.backgroundColor}`,
+      after: `${current.backgroundColor}`
     });
   }
 

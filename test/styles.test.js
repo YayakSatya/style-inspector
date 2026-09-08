@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePx, computeStyleDiff } from '../src/core/styles.js';
+import { parsePx, computeStyleDiff, rgbToHex } from '../src/core/styles.js';
 
 describe('Styles & Diff Calculator', () => {
   test('parsePx correctly converts css px strings to numbers', () => {
@@ -123,5 +123,33 @@ describe('Styles & Diff Calculator', () => {
     assert.equal(diffs.length, 2);
     assert.deepEqual(diffs[0], { property: 'font-weight', before: '400', after: '700' });
     assert.deepEqual(diffs[1], { property: 'text-transform', before: 'none', after: 'uppercase' });
+  });
+
+  test('rgbToHex converts rgb/rgba and hex correctly', () => {
+    assert.equal(rgbToHex('rgb(255, 0, 128)'), '#ff0080');
+    assert.equal(rgbToHex('rgba(30, 41, 59, 1)'), '#1e293b');
+    assert.equal(rgbToHex('#6366f1'), '#6366f1');
+    assert.equal(rgbToHex('transparent', '#111111'), '#111111');
+  });
+
+  test('computeStyleDiff detects font color and background-color changes', () => {
+    const baseline = {
+      paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0,
+      marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0,
+      gap: 0, fontSize: 16, lineHeight: 1.4, letterSpacing: 0,
+      color: 'rgb(15, 23, 42)',
+      backgroundColor: 'transparent'
+    };
+
+    const current = {
+      ...baseline,
+      color: '#6366f1',
+      backgroundColor: '#1e293b'
+    };
+
+    const diffs = computeStyleDiff(baseline, current);
+    assert.equal(diffs.length, 2);
+    assert.deepEqual(diffs[0], { property: 'color', before: 'rgb(15, 23, 42)', after: '#6366f1' });
+    assert.deepEqual(diffs[1], { property: 'background-color', before: 'transparent', after: '#1e293b' });
   });
 });

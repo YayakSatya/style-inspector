@@ -172,7 +172,12 @@ export class InspectorState {
     }
     // Individual property
     else {
-      const isStringProp = prop === 'lineHeight' || prop === 'fontWeight' || prop === 'textTransform';
+      const isStringProp =
+        prop === 'lineHeight' ||
+        prop === 'fontWeight' ||
+        prop === 'textTransform' ||
+        prop === 'color' ||
+        prop === 'backgroundColor';
       item.current[prop] = isStringProp ? `${value}` : numVal;
       applyStyleProperty(item.element, prop, value, isStringProp ? '' : 'px');
     }

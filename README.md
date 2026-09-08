@@ -107,6 +107,8 @@ In accordance with PRD Section 8, all tool interactive elements implement specif
 | Line-height input | `style_inspector_panel_line_height_input` |
 | Font-weight select | `style_inspector_panel_font_weight_select` |
 | Text-transform select | `style_inspector_panel_text_transform_select` |
+| Font color input | `style_inspector_panel_color_input` |
+| Background color input | `style_inspector_panel_bg_color_input` |
 | Link-all-sides toggle (padding/margin) | `style_inspector_panel_link_sides_switch` |
 | Per-element reset button | `style_inspector_panel_reset_button` |
 | List of pinned elements | `style_inspector_panel_pinned_item` |

@@ -523,6 +523,55 @@ export const inspectorStyles = `
   color: #f8fafc;
 }
 
+/* Color Picker & Text Inputs */
+.si-color-picker-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.si-color-swatch {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid #334155;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.si-color-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.si-color-swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 5px;
+}
+
+.si-input-text {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-family: monospace;
+  padding: 4px 8px;
+  outline: none;
+  height: 28px;
+  min-width: 0;
+}
+
+.si-input-text:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
 /* Directional Grid for unlinked padding / margin */
 .si-dir-grid {
   display: grid;

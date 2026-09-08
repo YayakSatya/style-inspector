@@ -131,6 +131,29 @@ var StyleInspectorBundle = (() => {
     const num = parseFloat(val);
     return isNaN(num) ? fallback : Math.round(num * 100) / 100;
   }
+  function rgbToHex(colorStr, fallback = "#000000") {
+    if (!colorStr || typeof colorStr !== "string") return fallback;
+    const str = colorStr.trim();
+    if (str.startsWith("#")) {
+      if (str.length === 4) {
+        return `#${str[1]}${str[1]}${str[2]}${str[2]}${str[3]}${str[3]}`.toLowerCase();
+      }
+      if (str.length >= 7) {
+        return str.slice(0, 7).toLowerCase();
+      }
+    }
+    if (str === "transparent" || str === "rgba(0, 0, 0, 0)") {
+      return fallback;
+    }
+    const match = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (match) {
+      const r = Math.min(255, parseInt(match[1], 10)).toString(16).padStart(2, "0");
+      const g = Math.min(255, parseInt(match[2], 10)).toString(16).padStart(2, "0");
+      const b = Math.min(255, parseInt(match[3], 10)).toString(16).padStart(2, "0");
+      return `#${r}${g}${b}`.toLowerCase();
+    }
+    return fallback;
+  }
   function readElementStyles(element, win = typeof window !== "undefined" ? window : null) {
     if (!element || !win) {
       return createDefaultStyles();
@@ -174,6 +197,8 @@ var StyleInspectorBundle = (() => {
     if (fontWeight === "normal") fontWeight = "400";
     if (fontWeight === "bold") fontWeight = "700";
     const textTransform = computed.textTransform || "none";
+    const color = computed.color || "rgb(0, 0, 0)";
+    const backgroundColor = computed.backgroundColor || "transparent";
     return {
       paddingTop,
       paddingRight,
@@ -189,7 +214,9 @@ var StyleInspectorBundle = (() => {
       lineHeightUnit,
       letterSpacing,
       fontWeight,
-      textTransform
+      textTransform,
+      color,
+      backgroundColor
     };
   }
   function createDefaultStyles() {
@@ -208,7 +235,9 @@ var StyleInspectorBundle = (() => {
       lineHeightUnit: "unitless",
       letterSpacing: 0,
       fontWeight: "400",
-      textTransform: "none"
+      textTransform: "none",
+      color: "rgb(0, 0, 0)",
+      backgroundColor: "transparent"
     };
   }
   var originalInlineStyles = /* @__PURE__ */ new WeakMap();
@@ -230,7 +259,9 @@ var StyleInspectorBundle = (() => {
       "line-height",
       "letter-spacing",
       "font-weight",
-      "text-transform"
+      "text-transform",
+      "color",
+      "background-color"
     ];
     const saved = {};
     for (const prop of props) {
@@ -255,12 +286,14 @@ var StyleInspectorBundle = (() => {
       lineHeight: "line-height",
       letterSpacing: "letter-spacing",
       fontWeight: "font-weight",
-      textTransform: "text-transform"
+      textTransform: "text-transform",
+      color: "color",
+      backgroundColor: "background-color"
     };
     const cssProp = cssPropMap[prop];
     if (!cssProp) return;
     let formattedVal = val;
-    if (prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform") {
+    if (prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform" || prop === "color" || prop === "backgroundColor") {
       formattedVal = typeof val === "number" ? `${val}` : val;
     } else {
       formattedVal = `${val}${unit}`;
@@ -373,6 +406,20 @@ var StyleInspectorBundle = (() => {
         property: "text-transform",
         before: `${baseline.textTransform}`,
         after: `${current.textTransform}`
+      });
+    }
+    if (baseline.color && current.color && baseline.color !== current.color) {
+      diffs.push({
+        property: "color",
+        before: `${baseline.color}`,
+        after: `${current.color}`
+      });
+    }
+    if (baseline.backgroundColor && current.backgroundColor && baseline.backgroundColor !== current.backgroundColor) {
+      diffs.push({
+        property: "background-color",
+        before: `${baseline.backgroundColor}`,
+        after: `${current.backgroundColor}`
       });
     }
     return diffs;
@@ -520,7 +567,7 @@ var StyleInspectorBundle = (() => {
           applyStyleProperty(item.element, side, numVal, "px");
         }
       } else {
-        const isStringProp = prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform";
+        const isStringProp = prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform" || prop === "color" || prop === "backgroundColor";
         item.current[prop] = isStringProp ? `${value}` : numVal;
         applyStyleProperty(item.element, prop, value, isStringProp ? "" : "px");
       }
@@ -1088,6 +1135,55 @@ var StyleInspectorBundle = (() => {
 .si-select option {
   background: #0f172a;
   color: #f8fafc;
+}
+
+/* Color Picker & Text Inputs */
+.si-color-picker-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.si-color-swatch {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid #334155;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.si-color-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.si-color-swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 5px;
+}
+
+.si-input-text {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-family: monospace;
+  padding: 4px 8px;
+  outline: none;
+  height: 28px;
+  min-width: 0;
+}
+
+.si-input-text:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 1px #6366f1;
 }
 
 /* Directional Grid for unlinked padding / margin */
@@ -1819,6 +1915,33 @@ Note: ${item.notes.trim()}`);
           </div>
         </div>
 
+        <!-- Colors Section -->
+        <div class="si-section">
+          <div class="si-section-header">
+            <span>Colors</span>
+          </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Text Color</span>
+            <div class="si-color-picker-wrap">
+              <input type="color" class="si-color-swatch" value="${rgbToHex(cur.color, "#ffffff")}" id="color-picker" title="Pick text color">
+              <input type="text" class="si-input-text"
+                     data-testid="style_inspector_panel_color_input"
+                     value="${escapeHtml(cur.color)}" id="color-input" placeholder="#ffffff or rgb(...)">
+            </div>
+          </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Background</span>
+            <div class="si-color-picker-wrap">
+              <input type="color" class="si-color-swatch" value="${rgbToHex(cur.backgroundColor, "#1e293b")}" id="bg-color-picker" title="Pick background color">
+              <input type="text" class="si-input-text"
+                     data-testid="style_inspector_panel_bg_color_input"
+                     value="${escapeHtml(cur.backgroundColor)}" id="bg-color-input" placeholder="transparent or #ffffff">
+            </div>
+          </div>
+        </div>
+
         <!-- Context & Notes Field -->
         <div class="si-section">
           <div class="si-section-header">
@@ -1976,6 +2099,26 @@ Note: ${item.notes.trim()}`);
           this.state.updateStyle(activeItem.id, "textTransform", e.target.value);
         };
       }
+      const bindColor = (pickerId, inputId, prop) => {
+        const picker = this.panel.querySelector(pickerId);
+        const input = this.panel.querySelector(inputId);
+        if (!input) return;
+        if (picker) {
+          picker.oninput = (e) => {
+            input.value = e.target.value;
+            this.state.updateStyle(activeItem.id, prop, e.target.value);
+          };
+        }
+        input.oninput = (e) => {
+          const val = e.target.value.trim();
+          if (picker && val.startsWith("#") && (val.length === 7 || val.length === 4)) {
+            picker.value = rgbToHex(val, picker.value);
+          }
+          this.state.updateStyle(activeItem.id, prop, val);
+        };
+      };
+      bindColor("#color-picker", "#color-input", "color");
+      bindColor("#bg-color-picker", "#bg-color-input", "backgroundColor");
     }
     _initDraggable() {
       const header = this.panel.querySelector(".si-panel-header");
