@@ -5,7 +5,9 @@
   "main": "dist/style-inspector.js",
   "type": "module",
   "scripts": {
-    "test": "node --test test/**/*.test.js",
+    "test": "node --test test/**/*.test.js && node test/browser-e2e.js",
+    "test:unit": "node --test test/**/*.test.js",
+    "test:e2e": "node test/browser-e2e.js",
     "build": "node build.js",
     "start": "node serve.js"
   },

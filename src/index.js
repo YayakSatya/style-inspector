@@ -59,10 +59,22 @@ export class StyleInspector {
       .si-toolbar, .si-panel, .si-banner, .si-toast {
         pointer-events: auto !important;
       }
+      .si-overlay-container, .si-hover-box, .si-hover-tag, .si-pinned-box, .si-pinned-tag {
+        pointer-events: none !important;
+      }
     `;
     this.shadowRoot.appendChild(styleFix);
 
-    document.documentElement.appendChild(this.host);
+    if (document.body) {
+      document.body.appendChild(this.host);
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (this.host && document.body && !document.body.contains(this.host)) {
+          document.body.appendChild(this.host);
+        }
+      });
+      document.documentElement.appendChild(this.host);
+    }
 
     // 2. Initialize Components
     this.overlay = new InspectorOverlay(this.shadowRoot, this.state);
@@ -71,6 +83,7 @@ export class StyleInspector {
 
     // 3. Attach Global Event Listeners
     window.addEventListener('pointermove', this._onPointerMove, true);
+    window.addEventListener('mousemove', this._onPointerMove, true);
     window.addEventListener('click', this._onClickCapture, true);
     window.addEventListener('keydown', this._onKeyDown, true);
 
@@ -84,12 +97,10 @@ export class StyleInspector {
   }
 
   _isInsideInspector(element) {
-    if (!element) return false;
+    if (!element || !(element instanceof Node)) return false;
     if (element === this.host) return true;
-    if (this.host.contains(element)) return true;
-    if (element.shadowRoot === this.shadowRoot) return true;
-
-    // Check composed path
+    if (this.shadowRoot && this.shadowRoot.contains(element)) return true;
+    if (this.host && this.host.contains(element)) return true;
     const root = element.getRootNode ? element.getRootNode() : null;
     return root === this.shadowRoot;
   }
@@ -104,7 +115,7 @@ export class StyleInspector {
     }
 
     const target = e.target;
-    if (!target || target === document.body || target === document.documentElement) {
+    if (!target || this._isInsideInspector(target) || target === document.body || target === document.documentElement) {
       this.state.setHoveredElement(null);
       return;
     }
@@ -122,7 +133,7 @@ export class StyleInspector {
     }
 
     const target = e.target;
-    if (!target || target === document.body || target === document.documentElement) {
+    if (!target || this._isInsideInspector(target) || target === document.body || target === document.documentElement) {
       return;
     }
 
@@ -141,8 +152,9 @@ export class StyleInspector {
       return;
     }
 
-    // Alt + Shift + S toggles inspection mode
-    if (e.altKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+    // Alt + Shift + S or Alt + S toggles inspection mode
+    const isSKey = e.code === 'KeyS' || e.key === 'S' || e.key === 's';
+    if (e.altKey && isSKey) {
       e.preventDefault();
       this.state.toggleInspecting();
     }

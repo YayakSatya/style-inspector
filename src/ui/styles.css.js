@@ -150,19 +150,20 @@ export const inspectorStyles = `
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none !important;
   z-index: 2147483640;
 }
 
 .si-hover-box {
-  position: absolute;
+  position: fixed !important;
+  box-sizing: border-box !important;
   border: 2px solid #06b6d4;
-  background: rgba(6, 182, 212, 0.12);
+  background: rgba(6, 182, 212, 0.16);
   border-radius: 3px;
   transition: all 0.05s ease-out;
-  pointer-events: none;
+  pointer-events: none !important;
   z-index: 2147483641;
 }
 
@@ -178,16 +179,17 @@ export const inspectorStyles = `
   padding: 2px 6px;
   border-radius: 3px 3px 0 0;
   white-space: nowrap;
-  pointer-events: none;
+  pointer-events: none !important;
   box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
 
 .si-pinned-box {
-  position: absolute;
+  position: fixed !important;
+  box-sizing: border-box !important;
   border: 2px dashed #f59e0b;
-  background: rgba(245, 158, 11, 0.08);
+  background: rgba(245, 158, 11, 0.1);
   border-radius: 3px;
-  pointer-events: none;
+  pointer-events: none !important;
   z-index: 2147483640;
 }
 
@@ -206,6 +208,7 @@ export const inspectorStyles = `
   display: flex;
   align-items: center;
   gap: 4px;
+  pointer-events: none !important;
   box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
 

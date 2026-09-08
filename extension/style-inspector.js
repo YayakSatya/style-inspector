@@ -686,19 +686,20 @@ var StyleInspectorBundle = (() => {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none !important;
   z-index: 2147483640;
 }
 
 .si-hover-box {
-  position: absolute;
+  position: fixed !important;
+  box-sizing: border-box !important;
   border: 2px solid #06b6d4;
-  background: rgba(6, 182, 212, 0.12);
+  background: rgba(6, 182, 212, 0.16);
   border-radius: 3px;
   transition: all 0.05s ease-out;
-  pointer-events: none;
+  pointer-events: none !important;
   z-index: 2147483641;
 }
 
@@ -714,16 +715,17 @@ var StyleInspectorBundle = (() => {
   padding: 2px 6px;
   border-radius: 3px 3px 0 0;
   white-space: nowrap;
-  pointer-events: none;
+  pointer-events: none !important;
   box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
 
 .si-pinned-box {
-  position: absolute;
+  position: fixed !important;
+  box-sizing: border-box !important;
   border: 2px dashed #f59e0b;
-  background: rgba(245, 158, 11, 0.08);
+  background: rgba(245, 158, 11, 0.1);
   border-radius: 3px;
-  pointer-events: none;
+  pointer-events: none !important;
   z-index: 2147483640;
 }
 
@@ -742,6 +744,7 @@ var StyleInspectorBundle = (() => {
   display: flex;
   align-items: center;
   gap: 4px;
+  pointer-events: none !important;
   box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
 
@@ -1868,13 +1871,26 @@ Note: ${item.notes.trim()}`);
       .si-toolbar, .si-panel, .si-banner, .si-toast {
         pointer-events: auto !important;
       }
+      .si-overlay-container, .si-hover-box, .si-hover-tag, .si-pinned-box, .si-pinned-tag {
+        pointer-events: none !important;
+      }
     `;
       this.shadowRoot.appendChild(styleFix);
-      document.documentElement.appendChild(this.host);
+      if (document.body) {
+        document.body.appendChild(this.host);
+      } else {
+        document.addEventListener("DOMContentLoaded", () => {
+          if (this.host && document.body && !document.body.contains(this.host)) {
+            document.body.appendChild(this.host);
+          }
+        });
+        document.documentElement.appendChild(this.host);
+      }
       this.overlay = new InspectorOverlay(this.shadowRoot, this.state);
       this.toolbar = new InspectorToolbar(this.shadowRoot, this.state);
       this.panel = new InspectorPanel(this.shadowRoot, this.state);
       window.addEventListener("pointermove", this._onPointerMove, true);
+      window.addEventListener("mousemove", this._onPointerMove, true);
       window.addEventListener("click", this._onClickCapture, true);
       window.addEventListener("keydown", this._onKeyDown, true);
       console.log(
@@ -1886,10 +1902,10 @@ Note: ${item.notes.trim()}`);
       );
     }
     _isInsideInspector(element) {
-      if (!element) return false;
+      if (!element || !(element instanceof Node)) return false;
       if (element === this.host) return true;
-      if (this.host.contains(element)) return true;
-      if (element.shadowRoot === this.shadowRoot) return true;
+      if (this.shadowRoot && this.shadowRoot.contains(element)) return true;
+      if (this.host && this.host.contains(element)) return true;
       const root = element.getRootNode ? element.getRootNode() : null;
       return root === this.shadowRoot;
     }
@@ -1901,7 +1917,7 @@ Note: ${item.notes.trim()}`);
         return;
       }
       const target = e.target;
-      if (!target || target === document.body || target === document.documentElement) {
+      if (!target || this._isInsideInspector(target) || target === document.body || target === document.documentElement) {
         this.state.setHoveredElement(null);
         return;
       }
@@ -1914,7 +1930,7 @@ Note: ${item.notes.trim()}`);
         return;
       }
       const target = e.target;
-      if (!target || target === document.body || target === document.documentElement) {
+      if (!target || this._isInsideInspector(target) || target === document.body || target === document.documentElement) {
         return;
       }
       e.preventDefault();
@@ -1927,7 +1943,8 @@ Note: ${item.notes.trim()}`);
         this.state.stopInspecting();
         return;
       }
-      if (e.altKey && e.shiftKey && (e.key === "S" || e.key === "s")) {
+      const isSKey = e.code === "KeyS" || e.key === "S" || e.key === "s";
+      if (e.altKey && isSKey) {
         e.preventDefault();
         this.state.toggleInspecting();
       }
