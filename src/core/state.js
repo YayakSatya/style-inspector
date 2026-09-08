@@ -176,6 +176,7 @@ export class InspectorState {
         prop === 'lineHeight' ||
         prop === 'fontWeight' ||
         prop === 'textTransform' ||
+        prop === 'textAlign' ||
         prop === 'color' ||
         prop === 'backgroundColor';
       item.current[prop] = isStringProp ? `${value}` : numVal;

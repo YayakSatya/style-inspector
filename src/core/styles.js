@@ -113,6 +113,9 @@ export function readElementStyles(element, win = (typeof window !== 'undefined' 
   // Text transform
   const textTransform = computed.textTransform || 'none';
 
+  // Text align
+  const textAlign = computed.textAlign || 'left';
+
   // Colors
   const color = computed.color || 'rgb(0, 0, 0)';
   const backgroundColor = computed.backgroundColor || 'transparent';
@@ -133,6 +136,7 @@ export function readElementStyles(element, win = (typeof window !== 'undefined' 
     letterSpacing,
     fontWeight,
     textTransform,
+    textAlign,
     color,
     backgroundColor
   };
@@ -158,6 +162,7 @@ export function createDefaultStyles() {
     letterSpacing: 0,
     fontWeight: '400',
     textTransform: 'none',
+    textAlign: 'left',
     color: 'rgb(0, 0, 0)',
     backgroundColor: 'transparent'
   };
@@ -181,7 +186,7 @@ export function captureOriginalInline(element) {
     'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
     'gap', 'row-gap', 'column-gap',
     'font-size', 'line-height', 'letter-spacing',
-    'font-weight', 'text-transform',
+    'font-weight', 'text-transform', 'text-align',
     'color', 'background-color'
   ];
 
@@ -218,6 +223,7 @@ export function applyStyleProperty(element, prop, val, unit = 'px') {
     letterSpacing: 'letter-spacing',
     fontWeight: 'font-weight',
     textTransform: 'text-transform',
+    textAlign: 'text-align',
     color: 'color',
     backgroundColor: 'background-color'
   };
@@ -226,7 +232,14 @@ export function applyStyleProperty(element, prop, val, unit = 'px') {
   if (!cssProp) return;
 
   let formattedVal = val;
-  if (prop === 'lineHeight' || prop === 'fontWeight' || prop === 'textTransform' || prop === 'color' || prop === 'backgroundColor') {
+  if (
+    prop === 'lineHeight' ||
+    prop === 'fontWeight' ||
+    prop === 'textTransform' ||
+    prop === 'textAlign' ||
+    prop === 'color' ||
+    prop === 'backgroundColor'
+  ) {
     formattedVal = typeof val === 'number' ? `${val}` : val;
   } else {
     formattedVal = `${val}${unit}`;
@@ -416,6 +429,15 @@ export function computeStyleDiff(baseline, current) {
       property: 'background-color',
       before: `${baseline.backgroundColor}`,
       after: `${current.backgroundColor}`
+    });
+  }
+
+  // 11. Text Align
+  if (baseline.textAlign && current.textAlign && baseline.textAlign !== current.textAlign) {
+    diffs.push({
+      property: 'text-align',
+      before: `${baseline.textAlign}`,
+      after: `${current.textAlign}`
     });
   }
 

@@ -12,7 +12,8 @@
   - **Padding**: 4 sides (Top, Right, Bottom, Left) or unified master slider (`link all sides`).
   - **Margin**: 4 sides (Top, Right, Bottom, Left) or unified master slider (`link all sides`).
   - **Gap**: Flex and Grid gap slider + manual input.
-  - **Typography**: Font-size, Line-height, and Letter-spacing sliders + number inputs.
+  - **Typography**: Font-size, Line-height, Letter-spacing, Font-weight (100–900), Text-transform, and Text-align (`left`, `center`, `right`, `justify`).
+  - **Colors**: Text color and Background-color with dual picker & hex/rgb text input.
 - **Zero-Pollution Shadow DOM**: Built inside an isolated Shadow DOM (`mode: 'open'`), ensuring host website CSS (Tailwind, Bootstrap, etc.) never affects the tool and tool styles never leak into the host page.
 - **Per-Element Context & Notes**: Attach optional flags (e.g. *"instance of repeated card component"*, *"desktop breakpoint only"*).
 - **Session History & Reset**: Reset individual elements or all elements back to their initial baseline.
@@ -107,6 +108,7 @@ In accordance with PRD Section 8, all tool interactive elements implement specif
 | Line-height input | `style_inspector_panel_line_height_input` |
 | Font-weight select | `style_inspector_panel_font_weight_select` |
 | Text-transform select | `style_inspector_panel_text_transform_select` |
+| Text-align select | `style_inspector_panel_text_align_select` |
 | Font color input | `style_inspector_panel_color_input` |
 | Background color input | `style_inspector_panel_bg_color_input` |
 | Link-all-sides toggle (padding/margin) | `style_inspector_panel_link_sides_switch` |

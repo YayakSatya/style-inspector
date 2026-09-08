@@ -347,6 +347,16 @@ export class InspectorPanel {
               <option value="capitalize" ${cur.textTransform === 'capitalize' ? 'selected' : ''}>capitalize - Capitalize</option>
             </select>
           </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Align</span>
+            <select class="si-select" data-testid="style_inspector_panel_text_align_select" id="text-align-select">
+              <option value="left" ${cur.textAlign === 'left' || !cur.textAlign ? 'selected' : ''}>left - Left</option>
+              <option value="center" ${cur.textAlign === 'center' ? 'selected' : ''}>center - Center</option>
+              <option value="right" ${cur.textAlign === 'right' ? 'selected' : ''}>right - Right</option>
+              <option value="justify" ${cur.textAlign === 'justify' ? 'selected' : ''}>justify - Justify</option>
+            </select>
+          </div>
         </div>
 
         <!-- Colors Section -->
@@ -558,6 +568,13 @@ export class InspectorPanel {
     if (transformSelect) {
       transformSelect.onchange = (e) => {
         this.state.updateStyle(activeItem.id, 'textTransform', e.target.value);
+      };
+    }
+
+    const alignSelect = this.panel.querySelector('#text-align-select');
+    if (alignSelect) {
+      alignSelect.onchange = (e) => {
+        this.state.updateStyle(activeItem.id, 'textAlign', e.target.value);
       };
     }
 

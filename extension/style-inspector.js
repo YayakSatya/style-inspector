@@ -197,6 +197,7 @@ var StyleInspectorBundle = (() => {
     if (fontWeight === "normal") fontWeight = "400";
     if (fontWeight === "bold") fontWeight = "700";
     const textTransform = computed.textTransform || "none";
+    const textAlign = computed.textAlign || "left";
     const color = computed.color || "rgb(0, 0, 0)";
     const backgroundColor = computed.backgroundColor || "transparent";
     return {
@@ -215,6 +216,7 @@ var StyleInspectorBundle = (() => {
       letterSpacing,
       fontWeight,
       textTransform,
+      textAlign,
       color,
       backgroundColor
     };
@@ -236,6 +238,7 @@ var StyleInspectorBundle = (() => {
       letterSpacing: 0,
       fontWeight: "400",
       textTransform: "none",
+      textAlign: "left",
       color: "rgb(0, 0, 0)",
       backgroundColor: "transparent"
     };
@@ -260,6 +263,7 @@ var StyleInspectorBundle = (() => {
       "letter-spacing",
       "font-weight",
       "text-transform",
+      "text-align",
       "color",
       "background-color"
     ];
@@ -287,13 +291,14 @@ var StyleInspectorBundle = (() => {
       letterSpacing: "letter-spacing",
       fontWeight: "font-weight",
       textTransform: "text-transform",
+      textAlign: "text-align",
       color: "color",
       backgroundColor: "background-color"
     };
     const cssProp = cssPropMap[prop];
     if (!cssProp) return;
     let formattedVal = val;
-    if (prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform" || prop === "color" || prop === "backgroundColor") {
+    if (prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform" || prop === "textAlign" || prop === "color" || prop === "backgroundColor") {
       formattedVal = typeof val === "number" ? `${val}` : val;
     } else {
       formattedVal = `${val}${unit}`;
@@ -420,6 +425,13 @@ var StyleInspectorBundle = (() => {
         property: "background-color",
         before: `${baseline.backgroundColor}`,
         after: `${current.backgroundColor}`
+      });
+    }
+    if (baseline.textAlign && current.textAlign && baseline.textAlign !== current.textAlign) {
+      diffs.push({
+        property: "text-align",
+        before: `${baseline.textAlign}`,
+        after: `${current.textAlign}`
       });
     }
     return diffs;
@@ -567,7 +579,7 @@ var StyleInspectorBundle = (() => {
           applyStyleProperty(item.element, side, numVal, "px");
         }
       } else {
-        const isStringProp = prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform" || prop === "color" || prop === "backgroundColor";
+        const isStringProp = prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform" || prop === "textAlign" || prop === "color" || prop === "backgroundColor";
         item.current[prop] = isStringProp ? `${value}` : numVal;
         applyStyleProperty(item.element, prop, value, isStringProp ? "" : "px");
       }
@@ -1913,6 +1925,16 @@ Note: ${item.notes.trim()}`);
               <option value="capitalize" ${cur.textTransform === "capitalize" ? "selected" : ""}>capitalize - Capitalize</option>
             </select>
           </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Align</span>
+            <select class="si-select" data-testid="style_inspector_panel_text_align_select" id="text-align-select">
+              <option value="left" ${cur.textAlign === "left" || !cur.textAlign ? "selected" : ""}>left - Left</option>
+              <option value="center" ${cur.textAlign === "center" ? "selected" : ""}>center - Center</option>
+              <option value="right" ${cur.textAlign === "right" ? "selected" : ""}>right - Right</option>
+              <option value="justify" ${cur.textAlign === "justify" ? "selected" : ""}>justify - Justify</option>
+            </select>
+          </div>
         </div>
 
         <!-- Colors Section -->
@@ -2097,6 +2119,12 @@ Note: ${item.notes.trim()}`);
       if (transformSelect) {
         transformSelect.onchange = (e) => {
           this.state.updateStyle(activeItem.id, "textTransform", e.target.value);
+        };
+      }
+      const alignSelect = this.panel.querySelector("#text-align-select");
+      if (alignSelect) {
+        alignSelect.onchange = (e) => {
+          this.state.updateStyle(activeItem.id, "textAlign", e.target.value);
         };
       }
       const bindColor = (pickerId, inputId, prop) => {
