@@ -170,6 +170,10 @@ var StyleInspectorBundle = (() => {
     if (computed.letterSpacing && computed.letterSpacing !== "normal") {
       letterSpacing = parsePx(computed.letterSpacing, 0);
     }
+    let fontWeight = computed.fontWeight ? `${computed.fontWeight}` : "400";
+    if (fontWeight === "normal") fontWeight = "400";
+    if (fontWeight === "bold") fontWeight = "700";
+    const textTransform = computed.textTransform || "none";
     return {
       paddingTop,
       paddingRight,
@@ -183,7 +187,9 @@ var StyleInspectorBundle = (() => {
       fontSize,
       lineHeight,
       lineHeightUnit,
-      letterSpacing
+      letterSpacing,
+      fontWeight,
+      textTransform
     };
   }
   function createDefaultStyles() {
@@ -200,7 +206,9 @@ var StyleInspectorBundle = (() => {
       fontSize: 16,
       lineHeight: 1.4,
       lineHeightUnit: "unitless",
-      letterSpacing: 0
+      letterSpacing: 0,
+      fontWeight: "400",
+      textTransform: "none"
     };
   }
   var originalInlineStyles = /* @__PURE__ */ new WeakMap();
@@ -220,7 +228,9 @@ var StyleInspectorBundle = (() => {
       "column-gap",
       "font-size",
       "line-height",
-      "letter-spacing"
+      "letter-spacing",
+      "font-weight",
+      "text-transform"
     ];
     const saved = {};
     for (const prop of props) {
@@ -243,12 +253,14 @@ var StyleInspectorBundle = (() => {
       gap: "gap",
       fontSize: "font-size",
       lineHeight: "line-height",
-      letterSpacing: "letter-spacing"
+      letterSpacing: "letter-spacing",
+      fontWeight: "font-weight",
+      textTransform: "text-transform"
     };
     const cssProp = cssPropMap[prop];
     if (!cssProp) return;
     let formattedVal = val;
-    if (prop === "lineHeight") {
+    if (prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform") {
       formattedVal = typeof val === "number" ? `${val}` : val;
     } else {
       formattedVal = `${val}${unit}`;
@@ -347,6 +359,20 @@ var StyleInspectorBundle = (() => {
         property: "letter-spacing",
         before: `${baseline.letterSpacing}px`,
         after: `${current.letterSpacing}px`
+      });
+    }
+    if (baseline.fontWeight && current.fontWeight && `${baseline.fontWeight}` !== `${current.fontWeight}`) {
+      diffs.push({
+        property: "font-weight",
+        before: `${baseline.fontWeight}`,
+        after: `${current.fontWeight}`
+      });
+    }
+    if (baseline.textTransform && current.textTransform && baseline.textTransform !== current.textTransform) {
+      diffs.push({
+        property: "text-transform",
+        before: `${baseline.textTransform}`,
+        after: `${current.textTransform}`
       });
     }
     return diffs;
@@ -494,8 +520,9 @@ var StyleInspectorBundle = (() => {
           applyStyleProperty(item.element, side, numVal, "px");
         }
       } else {
-        item.current[prop] = prop === "lineHeight" ? value : numVal;
-        applyStyleProperty(item.element, prop, value, prop === "lineHeight" ? "" : "px");
+        const isStringProp = prop === "lineHeight" || prop === "fontWeight" || prop === "textTransform";
+        item.current[prop] = isStringProp ? `${value}` : numVal;
+        applyStyleProperty(item.element, prop, value, isStringProp ? "" : "px");
       }
       this.emit("styleChanged", { item, prop, value });
       this.emit("stateUpdated", this);
@@ -1037,6 +1064,30 @@ var StyleInspectorBundle = (() => {
 .si-input-number:focus {
   border-color: #6366f1;
   box-shadow: 0 0 0 1px #6366f1;
+}
+
+.si-select {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+  height: 28px;
+}
+
+.si-select:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.si-select option {
+  background: #0f172a;
+  color: #f8fafc;
 }
 
 /* Directional Grid for unlinked padding / margin */
@@ -1741,6 +1792,31 @@ Note: ${item.notes.trim()}`);
             <input type="number" class="si-input-number" step="0.1"
                    value="${cur.letterSpacing}" id="letter-spacing-input">
           </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Font Weight</span>
+            <select class="si-select" data-testid="style_inspector_panel_font_weight_select" id="font-weight-select">
+              <option value="100" ${`${cur.fontWeight}` === "100" ? "selected" : ""}>100 - Thin</option>
+              <option value="200" ${`${cur.fontWeight}` === "200" ? "selected" : ""}>200 - Extra Light</option>
+              <option value="300" ${`${cur.fontWeight}` === "300" ? "selected" : ""}>300 - Light</option>
+              <option value="400" ${`${cur.fontWeight}` === "400" || !cur.fontWeight ? "selected" : ""}>400 - Normal</option>
+              <option value="500" ${`${cur.fontWeight}` === "500" ? "selected" : ""}>500 - Medium</option>
+              <option value="600" ${`${cur.fontWeight}` === "600" ? "selected" : ""}>600 - Semi Bold</option>
+              <option value="700" ${`${cur.fontWeight}` === "700" ? "selected" : ""}>700 - Bold</option>
+              <option value="800" ${`${cur.fontWeight}` === "800" ? "selected" : ""}>800 - Extra Bold</option>
+              <option value="900" ${`${cur.fontWeight}` === "900" ? "selected" : ""}>900 - Black</option>
+            </select>
+          </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Transform</span>
+            <select class="si-select" data-testid="style_inspector_panel_text_transform_select" id="text-transform-select">
+              <option value="none" ${cur.textTransform === "none" || !cur.textTransform ? "selected" : ""}>none - Normal</option>
+              <option value="uppercase" ${cur.textTransform === "uppercase" ? "selected" : ""}>uppercase - UPPERCASE</option>
+              <option value="lowercase" ${cur.textTransform === "lowercase" ? "selected" : ""}>lowercase - lowercase</option>
+              <option value="capitalize" ${cur.textTransform === "capitalize" ? "selected" : ""}>capitalize - Capitalize</option>
+            </select>
+          </div>
         </div>
 
         <!-- Context & Notes Field -->
@@ -1888,6 +1964,18 @@ Note: ${item.notes.trim()}`);
       bindSync("#font-size-slider", "#font-size-input", "fontSize");
       bindSync("#line-height-slider", "#line-height-input", "lineHeight");
       bindSync("#letter-spacing-slider", "#letter-spacing-input", "letterSpacing");
+      const weightSelect = this.panel.querySelector("#font-weight-select");
+      if (weightSelect) {
+        weightSelect.onchange = (e) => {
+          this.state.updateStyle(activeItem.id, "fontWeight", e.target.value);
+        };
+      }
+      const transformSelect = this.panel.querySelector("#text-transform-select");
+      if (transformSelect) {
+        transformSelect.onchange = (e) => {
+          this.state.updateStyle(activeItem.id, "textTransform", e.target.value);
+        };
+      }
     }
     _initDraggable() {
       const header = this.panel.querySelector(".si-panel-header");

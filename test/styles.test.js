@@ -103,4 +103,25 @@ describe('Styles & Diff Calculator', () => {
     assert.deepEqual(diffs[2], { property: 'line-height', before: '1.2', after: '1.4' });
     assert.deepEqual(diffs[3], { property: 'letter-spacing', before: '0px', after: '0.5px' });
   });
+
+  test('computeStyleDiff detects font-weight and text-transform changes', () => {
+    const baseline = {
+      paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0,
+      marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0,
+      gap: 0, fontSize: 16, lineHeight: 1.4, letterSpacing: 0,
+      fontWeight: '400',
+      textTransform: 'none'
+    };
+
+    const current = {
+      ...baseline,
+      fontWeight: '700',
+      textTransform: 'uppercase'
+    };
+
+    const diffs = computeStyleDiff(baseline, current);
+    assert.equal(diffs.length, 2);
+    assert.deepEqual(diffs[0], { property: 'font-weight', before: '400', after: '700' });
+    assert.deepEqual(diffs[1], { property: 'text-transform', before: 'none', after: 'uppercase' });
+  });
 });

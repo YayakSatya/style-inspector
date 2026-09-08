@@ -75,6 +75,14 @@ export function readElementStyles(element, win = (typeof window !== 'undefined' 
     letterSpacing = parsePx(computed.letterSpacing, 0);
   }
 
+  // Font weight
+  let fontWeight = computed.fontWeight ? `${computed.fontWeight}` : '400';
+  if (fontWeight === 'normal') fontWeight = '400';
+  if (fontWeight === 'bold') fontWeight = '700';
+
+  // Text transform
+  const textTransform = computed.textTransform || 'none';
+
   return {
     paddingTop,
     paddingRight,
@@ -88,7 +96,9 @@ export function readElementStyles(element, win = (typeof window !== 'undefined' 
     fontSize,
     lineHeight,
     lineHeightUnit,
-    letterSpacing
+    letterSpacing,
+    fontWeight,
+    textTransform
   };
 }
 
@@ -109,7 +119,9 @@ export function createDefaultStyles() {
     fontSize: 16,
     lineHeight: 1.4,
     lineHeightUnit: 'unitless',
-    letterSpacing: 0
+    letterSpacing: 0,
+    fontWeight: '400',
+    textTransform: 'none'
   };
 }
 
@@ -130,7 +142,8 @@ export function captureOriginalInline(element) {
     'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
     'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
     'gap', 'row-gap', 'column-gap',
-    'font-size', 'line-height', 'letter-spacing'
+    'font-size', 'line-height', 'letter-spacing',
+    'font-weight', 'text-transform'
   ];
 
   const saved = {};
@@ -163,14 +176,16 @@ export function applyStyleProperty(element, prop, val, unit = 'px') {
     gap: 'gap',
     fontSize: 'font-size',
     lineHeight: 'line-height',
-    letterSpacing: 'letter-spacing'
+    letterSpacing: 'letter-spacing',
+    fontWeight: 'font-weight',
+    textTransform: 'text-transform'
   };
 
   const cssProp = cssPropMap[prop];
   if (!cssProp) return;
 
   let formattedVal = val;
-  if (prop === 'lineHeight') {
+  if (prop === 'lineHeight' || prop === 'fontWeight' || prop === 'textTransform') {
     formattedVal = typeof val === 'number' ? `${val}` : val;
   } else {
     formattedVal = `${val}${unit}`;
@@ -324,6 +339,24 @@ export function computeStyleDiff(baseline, current) {
       property: 'letter-spacing',
       before: `${baseline.letterSpacing}px`,
       after: `${current.letterSpacing}px`
+    });
+  }
+
+  // 7. Font Weight
+  if (baseline.fontWeight && current.fontWeight && `${baseline.fontWeight}` !== `${current.fontWeight}`) {
+    diffs.push({
+      property: 'font-weight',
+      before: `${baseline.fontWeight}`,
+      after: `${current.fontWeight}`
+    });
+  }
+
+  // 8. Text Transform
+  if (baseline.textTransform && current.textTransform && baseline.textTransform !== current.textTransform) {
+    diffs.push({
+      property: 'text-transform',
+      before: `${baseline.textTransform}`,
+      after: `${current.textTransform}`
     });
   }
 

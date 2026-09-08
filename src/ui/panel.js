@@ -321,6 +321,31 @@ export class InspectorPanel {
             <input type="number" class="si-input-number" step="0.1"
                    value="${cur.letterSpacing}" id="letter-spacing-input">
           </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Font Weight</span>
+            <select class="si-select" data-testid="style_inspector_panel_font_weight_select" id="font-weight-select">
+              <option value="100" ${`${cur.fontWeight}` === '100' ? 'selected' : ''}>100 - Thin</option>
+              <option value="200" ${`${cur.fontWeight}` === '200' ? 'selected' : ''}>200 - Extra Light</option>
+              <option value="300" ${`${cur.fontWeight}` === '300' ? 'selected' : ''}>300 - Light</option>
+              <option value="400" ${`${cur.fontWeight}` === '400' || !cur.fontWeight ? 'selected' : ''}>400 - Normal</option>
+              <option value="500" ${`${cur.fontWeight}` === '500' ? 'selected' : ''}>500 - Medium</option>
+              <option value="600" ${`${cur.fontWeight}` === '600' ? 'selected' : ''}>600 - Semi Bold</option>
+              <option value="700" ${`${cur.fontWeight}` === '700' ? 'selected' : ''}>700 - Bold</option>
+              <option value="800" ${`${cur.fontWeight}` === '800' ? 'selected' : ''}>800 - Extra Bold</option>
+              <option value="900" ${`${cur.fontWeight}` === '900' ? 'selected' : ''}>900 - Black</option>
+            </select>
+          </div>
+
+          <div class="si-control-row">
+            <span class="si-control-label">Transform</span>
+            <select class="si-select" data-testid="style_inspector_panel_text_transform_select" id="text-transform-select">
+              <option value="none" ${cur.textTransform === 'none' || !cur.textTransform ? 'selected' : ''}>none - Normal</option>
+              <option value="uppercase" ${cur.textTransform === 'uppercase' ? 'selected' : ''}>uppercase - UPPERCASE</option>
+              <option value="lowercase" ${cur.textTransform === 'lowercase' ? 'selected' : ''}>lowercase - lowercase</option>
+              <option value="capitalize" ${cur.textTransform === 'capitalize' ? 'selected' : ''}>capitalize - Capitalize</option>
+            </select>
+          </div>
         </div>
 
         <!-- Context & Notes Field -->
@@ -493,6 +518,20 @@ export class InspectorPanel {
     bindSync('#font-size-slider', '#font-size-input', 'fontSize');
     bindSync('#line-height-slider', '#line-height-input', 'lineHeight');
     bindSync('#letter-spacing-slider', '#letter-spacing-input', 'letterSpacing');
+
+    const weightSelect = this.panel.querySelector('#font-weight-select');
+    if (weightSelect) {
+      weightSelect.onchange = (e) => {
+        this.state.updateStyle(activeItem.id, 'fontWeight', e.target.value);
+      };
+    }
+
+    const transformSelect = this.panel.querySelector('#text-transform-select');
+    if (transformSelect) {
+      transformSelect.onchange = (e) => {
+        this.state.updateStyle(activeItem.id, 'textTransform', e.target.value);
+      };
+    }
   }
 
   _initDraggable() {

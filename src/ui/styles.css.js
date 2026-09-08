@@ -499,6 +499,30 @@ export const inspectorStyles = `
   box-shadow: 0 0 0 1px #6366f1;
 }
 
+.si-select {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+  height: 28px;
+}
+
+.si-select:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.si-select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
 /* Directional Grid for unlinked padding / margin */
 .si-dir-grid {
   display: grid;
