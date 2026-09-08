@@ -1,0 +1,24 @@
+{
+  "name": "style-inspector",
+  "version": "1.0.0",
+  "description": "Internal browser-based visual adjustment tool for Antigravity AI coding agent",
+  "main": "dist/style-inspector.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/**/*.test.js",
+    "build": "node build.js",
+    "start": "node serve.js"
+  },
+  "keywords": [
+    "css",
+    "devtools",
+    "visual-editor",
+    "antigravity",
+    "styling"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

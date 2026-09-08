@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Style Inspector",
+  "version": "1.0.0",
+  "description": "Internal visual adjustment tool for Antigravity AI coding agent",
+  "action": {
+    "default_title": "Toggle Style Inspector (Alt+Shift+S)",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "commands": {
+    "toggle_inspector": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Toggle Style Inspector"
+    }
+  }
+}

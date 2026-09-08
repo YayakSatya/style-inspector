@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Style Inspector — Demo & Testbed</title>
+  <style>
+    :root {
+      --bg-main: #f8fafc;
+      --bg-card: #ffffff;
+      --border-color: #e2e8f0;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --success: #10b981;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-main);
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 240px;
+      background: #0f172a;
+      color: #cbd5e1;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      border-right: 1px solid #1e293b;
+    }
+
+    .sidebar-brand {
+      padding: 20px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sidebar-nav {
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .sidebar-item {
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #94a3b8;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.15s;
+    }
+
+    .sidebar-item.active, .sidebar-item:hover {
+      background: #1e293b;
+      color: #ffffff;
+    }
+
+    /* Main Content */
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* Top Navbar */
+    .top-nav {
+      height: 60px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+
+    .top-nav-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .top-nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-outline {
+      border-color: var(--border-color);
+      background: white;
+      color: var(--text-main);
+    }
+    .btn-outline:hover {
+      background: #f1f5f9;
+    }
+
+    /* Page Container */
+    .container {
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Help Banner */
+    .help-banner {
+      background: linear-gradient(135deg, #312e81, #1e1b4b);
+      border: 1px solid #4338ca;
+      border-radius: 10px;
+      padding: 20px;
+      color: #e0e7ff;
+    }
+
+    .help-banner h2 {
+      font-size: 18px;
+      margin-bottom: 8px;
+      color: #ffffff;
+    }
+
+    .help-banner p {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #c7d2fe;
+      margin-bottom: 14px;
+    }
+
+    .help-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .step-box {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 12px;
+    }
+
+    .step-num {
+      font-weight: 700;
+      color: #818cf8;
+      margin-bottom: 4px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .stat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stat-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .stat-footer {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--success);
+      font-weight: 500;
+    }
+
+    /* Section Cards */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--text-main);
+    }
+
+    /* Table */
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      font-weight: 600;
+      color: var(--text-muted);
+      background: #f8fafc;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-success {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .badge-warning {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    /* Action bar */
+    .action-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <span>⚡</span>
+      <span>Admin Console</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="sidebar-item active">📊 Dashboard</a>
+      <a href="#" class="sidebar-item">📈 Analytics</a>
+      <a href="#" class="sidebar-item">👥 Customers</a>
+      <a href="#" class="sidebar-item">📦 Inventory</a>
+      <a href="#" class="sidebar-item">⚙️ Settings</a>
+    </nav>
+  </aside>
+
+  <!-- Main Area -->
+  <div class="main-area">
+    <!-- Top Nav -->
+    <header class="top-nav">
+      <div class="top-nav-title">Overview Dashboard</div>
+      <div class="top-nav-actions">
+        <a href="../dist/bookmarklet.html" class="btn btn-outline" target="_blank">🔖 Bookmarklet Installer</a>
+        <button class="btn btn-primary" onclick="if(window.__STYLE_INSPECTOR__) window.__STYLE_INSPECTOR__.enable();">
+          🔍 Launch Style Inspector
+        </button>
+      </div>
+    </header>
+
+    <!-- Page Body -->
+    <main class="container">
+
+      <!-- Help / Instructions Banner -->
+      <section class="help-banner">
+        <h2>🎨 Style Inspector Testbed</h2>
+        <p>
+          This playground is designed to verify the Style Inspector tool end-to-end.
+          Inspect elements, adjust padding, margin, gap, and typography in real-time, and copy structured markdown ready for Antigravity!
+        </p>
+        <div class="help-steps">
+          <div class="step-box">
+            <div class="step-num">1. Toggle Mode</div>
+            Press <code style="color:#fcd34d;">Alt+Shift+S</code> or click the floating badge on the bottom-right.
+          </div>
+          <div class="step-box">
+            <div class="step-num">2. Select & Pin</div>
+            Hover to see tag & automation ID. Click to pin elements into the session.
+          </div>
+          <div class="step-box">
+            <div class="step-num">3. Adjust & Export</div>
+            Tweak sliders live, write notes, and click "Export All to Clipboard".
+          </div>
+        </div>
+      </section>
+
+      <!-- Stat Cards Grid with explicit data-testids from PRD -->
+      <section class="stats-grid">
+        <!-- Target Stat Card from PRD Section 7.3 -->
+        <div class="stat-card" data-testid="dashboard_page_stat_card">
+          <div class="stat-header">
+            <span class="stat-title" data-testid="dashboard_page_stat_card_title">Total Revenue</span>
+            <span>💰</span>
+          </div>
+          <div class="stat-value" data-testid="dashboard_page_stat_card_value">$124,592</div>
+          <div class="stat-footer">
+            <span>↑ 14.2%</span>
+            <span style="color: var(--text-muted);">vs last month</span>
+          </div>
+        </div>
+
+        <div class="stat-card" data-testid="dashboard_page_user_growth_card">
+          <div class="stat-header">
+            <span class="stat-title" data-testid="dashboard_page_user_growth_title">Active Users</span>
+            <span>👥</span>
+          </div>
+          <div class="stat-value" data-testid="dashboard_page_user_growth_value">18,240</div>
+          <div class="stat-footer">
+            <span>↑ 8.1%</span>
+            <span style="color: var(--text-muted);">new signups</span>
+          </div>
+        </div>
+
+        <div class="stat-card" data-testid="dashboard_page_conversion_card">
+          <div class="stat-header">
+            <span class="stat-title">Conversion Rate</span>
+            <span>🎯</span>
+          </div>
+          <div class="stat-value">3.48%</div>
+          <div class="stat-footer">
+            <span>↑ 0.6%</span>
+            <span style="color: var(--text-muted);">checkout flow</span>
+          </div>
+        </div>
+
+        <div class="stat-card" data-testid="dashboard_page_satisfaction_card">
+          <div class="stat-header">
+            <span class="stat-title">CSAT Score</span>
+            <span>⭐</span>
+          </div>
+          <div class="stat-value">4.9 / 5</div>
+          <div class="stat-footer">
+            <span>98.2%</span>
+            <span style="color: var(--text-muted);">positive feedback</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Content Grid -->
+      <div class="content-grid">
+        <!-- Data Table -->
+        <div class="card" data-testid="recent_orders_panel">
+          <h3 class="card-title">Recent Transactions</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr data-testid="order_row_101">
+                  <td><code>#ORD-8821</code></td>
+                  <td>Sarah Connor</td>
+                  <td>$249.00</td>
+                  <td><span class="badge badge-success">Completed</span></td>
+                </tr>
+                <tr data-testid="order_row_102">
+                  <td><code>#ORD-8822</code></td>
+                  <td>Thomas Anderson</td>
+                  <td>$1,120.50</td>
+                  <td><span class="badge badge-success">Completed</span></td>
+                </tr>
+                <tr data-testid="order_row_103">
+                  <td><code>#ORD-8823</code></td>
+                  <td>Bruce Wayne</td>
+                  <td>$5,400.00</td>
+                  <td><span class="badge badge-warning">Processing</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="action-bar" data-testid="order_action_bar">
+            <button class="btn btn-primary" data-testid="primary_action_button">Export Report</button>
+            <button class="btn btn-outline" data-testid="secondary_action_button">View All Orders</button>
+            <!-- Element without data-testid to test CSS path fallback -->
+            <button class="btn btn-outline" id="quick-filter-btn">Filter</button>
+          </div>
+        </div>
+
+        <!-- Typography & Notes Showcase -->
+        <div class="card" data-testid="announcements_panel">
+          <h3 class="card-title">System Announcements</h3>
+          <p style="font-size: 14px; line-height: 1.5; color: var(--text-muted); margin-bottom: 12px;" data-testid="announcement_text_primary">
+            Scheduled maintenance will occur this weekend on Sunday at 02:00 UTC. All services will remain online.
+          </p>
+          <div style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color);" data-testid="alert_notice_box">
+            <strong style="font-size: 13px; color: var(--primary);">Notice:</strong>
+            <span style="font-size: 12px; color: var(--text-muted);">API v2 deprecation deadline is approaching in 30 days.</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Injected Style Inspector bundle -->
+  <script src="../dist/style-inspector.js"></script>
+</body>
+</html>
