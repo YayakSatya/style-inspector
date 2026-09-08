@@ -2,7 +2,7 @@
  * Highlight and Pin Overlays
  */
 
-import { getElementLabel } from '../core/selector.js';
+import { getElementLabel, escapeHtml } from '../core/selector.js';
 
 export class InspectorOverlay {
   /**
@@ -92,7 +92,7 @@ export class InspectorOverlay {
 
         const tag = document.createElement('div');
         tag.className = 'si-pinned-tag';
-        tag.innerHTML = `<span>📌</span><span>${item.label}</span>`;
+        tag.innerHTML = `<span>📌</span><span>${escapeHtml(item.label)}</span>`;
         box.appendChild(tag);
 
         this.container.appendChild(box);

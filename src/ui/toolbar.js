@@ -20,7 +20,7 @@ export class InspectorToolbar {
     this.toggleBtn = document.createElement('div');
     this.toggleBtn.className = 'si-toolbar';
     this.toggleBtn.setAttribute('data-testid', 'style_inspector_toolbar_toggle_button');
-    this.toggleBtn.title = 'Toggle Style Inspector (Alt+Shift+S)';
+    this.toggleBtn.title = 'Toggle Style Inspector (Alt+Shift+S | Drag to move)';
 
     this.toggleBtn.innerHTML = `
       <span class="si-toolbar-indicator"></span>
@@ -30,7 +30,59 @@ export class InspectorToolbar {
 
     this.badge = this.toggleBtn.querySelector('.si-toolbar-badge');
 
+    let isDragging = false;
+    let hasDragged = false;
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+
+    this.toggleBtn.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      hasDragged = false;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = this.toggleBtn.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+
+      const onPointerMove = (moveEvt) => {
+        if (!isDragging) return;
+        const dx = moveEvt.clientX - startX;
+        const dy = moveEvt.clientY - startY;
+
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+          hasDragged = true;
+        }
+
+        const maxLeft = Math.max(10, window.innerWidth - this.toggleBtn.offsetWidth - 10);
+        const maxTop = Math.max(10, window.innerHeight - this.toggleBtn.offsetHeight - 10);
+
+        const newLeft = Math.max(10, Math.min(maxLeft, initialLeft + dx));
+        const newTop = Math.max(10, Math.min(maxTop, initialTop + dy));
+
+        this.toggleBtn.style.right = 'auto';
+        this.toggleBtn.style.bottom = 'auto';
+        this.toggleBtn.style.left = `${newLeft}px`;
+        this.toggleBtn.style.top = `${newTop}px`;
+      };
+
+      const onPointerUp = () => {
+        isDragging = false;
+        window.removeEventListener('pointermove', onPointerMove, true);
+        window.removeEventListener('pointerup', onPointerUp, true);
+      };
+
+      window.addEventListener('pointermove', onPointerMove, true);
+      window.addEventListener('pointerup', onPointerUp, true);
+    });
+
     this.toggleBtn.addEventListener('click', (e) => {
+      if (hasDragged) {
+        hasDragged = false;
+        return;
+      }
       e.stopPropagation();
       this.state.toggleInspecting();
     });

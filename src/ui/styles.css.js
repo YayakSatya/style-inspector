@@ -244,6 +244,7 @@ export const inspectorStyles = `
   justify-content: space-between;
   cursor: grab;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .si-panel-title {
@@ -288,6 +289,7 @@ export const inspectorStyles = `
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: thin;
+  flex-shrink: 0;
 }
 
 .si-pinned-bar::-webkit-scrollbar {
@@ -310,6 +312,7 @@ export const inspectorStyles = `
   color: #cbd5e1;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s;
 }
 
@@ -341,7 +344,8 @@ export const inspectorStyles = `
 .si-panel-body {
   padding: 14px 16px;
   overflow-y: auto;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -548,6 +552,7 @@ export const inspectorStyles = `
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .si-action-row {

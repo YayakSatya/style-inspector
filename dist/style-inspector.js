@@ -120,6 +120,10 @@ var StyleInspectorBundle = (() => {
     }
     return `<${tag}>`;
   }
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
 
   // src/core/styles.js
   function parsePx(val, fallback = 0) {
@@ -780,6 +784,7 @@ var StyleInspectorBundle = (() => {
   justify-content: space-between;
   cursor: grab;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .si-panel-title {
@@ -824,6 +829,7 @@ var StyleInspectorBundle = (() => {
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: thin;
+  flex-shrink: 0;
 }
 
 .si-pinned-bar::-webkit-scrollbar {
@@ -846,6 +852,7 @@ var StyleInspectorBundle = (() => {
   color: #cbd5e1;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s;
 }
 
@@ -877,7 +884,8 @@ var StyleInspectorBundle = (() => {
 .si-panel-body {
   padding: 14px 16px;
   overflow-y: auto;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1084,6 +1092,7 @@ var StyleInspectorBundle = (() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .si-action-row {
@@ -1227,7 +1236,7 @@ var StyleInspectorBundle = (() => {
           box.className = "si-pinned-box";
           const tag = document.createElement("div");
           tag.className = "si-pinned-tag";
-          tag.innerHTML = `<span>\u{1F4CC}</span><span>${item.label}</span>`;
+          tag.innerHTML = `<span>\u{1F4CC}</span><span>${escapeHtml(item.label)}</span>`;
           box.appendChild(tag);
           this.container.appendChild(box);
           this.pinnedBoxes.set(id, box);
@@ -1271,14 +1280,56 @@ var StyleInspectorBundle = (() => {
       this.toggleBtn = document.createElement("div");
       this.toggleBtn.className = "si-toolbar";
       this.toggleBtn.setAttribute("data-testid", "style_inspector_toolbar_toggle_button");
-      this.toggleBtn.title = "Toggle Style Inspector (Alt+Shift+S)";
+      this.toggleBtn.title = "Toggle Style Inspector (Alt+Shift+S | Drag to move)";
       this.toggleBtn.innerHTML = `
       <span class="si-toolbar-indicator"></span>
       <span class="si-toolbar-label">Style Inspector</span>
       <span class="si-toolbar-badge" style="display: none;">0</span>
     `;
       this.badge = this.toggleBtn.querySelector(".si-toolbar-badge");
+      let isDragging = false;
+      let hasDragged = false;
+      let startX = 0;
+      let startY = 0;
+      let initialLeft = 0;
+      let initialTop = 0;
+      this.toggleBtn.addEventListener("pointerdown", (e) => {
+        isDragging = true;
+        hasDragged = false;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = this.toggleBtn.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+        const onPointerMove = (moveEvt) => {
+          if (!isDragging) return;
+          const dx = moveEvt.clientX - startX;
+          const dy = moveEvt.clientY - startY;
+          if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+            hasDragged = true;
+          }
+          const maxLeft = Math.max(10, window.innerWidth - this.toggleBtn.offsetWidth - 10);
+          const maxTop = Math.max(10, window.innerHeight - this.toggleBtn.offsetHeight - 10);
+          const newLeft = Math.max(10, Math.min(maxLeft, initialLeft + dx));
+          const newTop = Math.max(10, Math.min(maxTop, initialTop + dy));
+          this.toggleBtn.style.right = "auto";
+          this.toggleBtn.style.bottom = "auto";
+          this.toggleBtn.style.left = `${newLeft}px`;
+          this.toggleBtn.style.top = `${newTop}px`;
+        };
+        const onPointerUp = () => {
+          isDragging = false;
+          window.removeEventListener("pointermove", onPointerMove, true);
+          window.removeEventListener("pointerup", onPointerUp, true);
+        };
+        window.addEventListener("pointermove", onPointerMove, true);
+        window.addEventListener("pointerup", onPointerUp, true);
+      });
       this.toggleBtn.addEventListener("click", (e) => {
+        if (hasDragged) {
+          hasDragged = false;
+          return;
+        }
         e.stopPropagation();
         this.state.toggleInspecting();
       });
@@ -1412,6 +1463,7 @@ Note: ${item.notes.trim()}`);
       this.shadowRoot = shadowRoot;
       this.state = state;
       this.isMinimized = false;
+      this._panelPosition = null;
       this._createPanel();
       this._bindEvents();
     }
@@ -1438,7 +1490,7 @@ Note: ${item.notes.trim()}`);
       if (existing) existing.remove();
       const toast = document.createElement("div");
       toast.className = "si-toast";
-      toast.innerHTML = `<span>\u{1F4CB}</span><span>${message}</span>`;
+      toast.innerHTML = `<span>\u{1F4CB}</span><span>${escapeHtml(message)}</span>`;
       this.shadowRoot.appendChild(toast);
       setTimeout(() => {
         toast.style.transition = "opacity 0.3s ease";
@@ -1454,9 +1506,14 @@ Note: ${item.notes.trim()}`);
         return;
       }
       this.panel.style.display = "flex";
+      if (this._panelPosition) {
+        this.panel.style.right = "auto";
+        this.panel.style.left = `${this._panelPosition.left}px`;
+        this.panel.style.top = `${this._panelPosition.top}px`;
+      }
       if (this.isMinimized) {
         this.panel.innerHTML = `
-        <div class="si-panel-header">
+        <div class="si-panel-header" title="Drag to move">
           <div class="si-panel-title">
             <span>\u{1F3A8}</span>
             <span>Style Inspector (${pinnedList.length})</span>
@@ -1475,10 +1532,11 @@ Note: ${item.notes.trim()}`);
           this.state.isPanelOpen = false;
           this.render();
         };
+        this._initDraggable();
         return;
       }
       this.panel.innerHTML = `
-      <div class="si-panel-header">
+      <div class="si-panel-header" title="Drag to move">
         <div class="si-panel-title">
           <span>\u{1F3A8}</span>
           <span>Style Inspector</span>
@@ -1496,7 +1554,7 @@ Note: ${item.notes.trim()}`);
           <div class="si-pinned-pill ${item.id === this.state.activePinnedId ? "active" : ""}"
                data-testid="style_inspector_panel_pinned_item"
                data-id="${item.id}">
-            <span>${item.label}</span>
+            <span>${escapeHtml(item.label)}</span>
             <span class="si-pinned-pill-close" data-remove="${item.id}">\xD7</span>
           </div>
         `
@@ -1517,13 +1575,14 @@ Note: ${item.notes.trim()}`);
       </div>
     `;
       this._attachEventListeners(activeItem);
+      this._initDraggable();
     }
     _renderActiveItemBody(item) {
       const cur = item.current;
       return `
       <div class="si-panel-body">
         <div class="si-target-info">
-          <span class="si-target-selector" title="${item.selector}">${item.selector}</span>
+          <span class="si-target-selector" title="${escapeHtml(item.selector)}">${escapeHtml(item.selector)}</span>
           <button class="si-btn-icon" id="si-copy-selector-btn" title="Copy selector">\u29C9</button>
         </div>
 
@@ -1690,7 +1749,7 @@ Note: ${item.notes.trim()}`);
             <span>Element Notes (Optional)</span>
           </div>
           <textarea class="si-textarea" id="si-notes-input"
-                    placeholder="e.g. Instance of repeated card, desktop breakpoint only...">${item.notes || ""}</textarea>
+                    placeholder="e.g. Instance of repeated card, desktop breakpoint only...">${escapeHtml(item.notes || "")}</textarea>
         </div>
 
         <!-- Element-Level Actions -->
@@ -1829,6 +1888,42 @@ Note: ${item.notes.trim()}`);
       bindSync("#font-size-slider", "#font-size-input", "fontSize");
       bindSync("#line-height-slider", "#line-height-input", "lineHeight");
       bindSync("#letter-spacing-slider", "#letter-spacing-input", "letterSpacing");
+    }
+    _initDraggable() {
+      const header = this.panel.querySelector(".si-panel-header");
+      if (!header) return;
+      header.style.cursor = "grab";
+      const onPointerDown = (e) => {
+        if (e.target.closest("button") || e.target.closest(".si-btn-icon")) return;
+        e.preventDefault();
+        header.style.cursor = "grabbing";
+        const rect = this.panel.getBoundingClientRect();
+        const shiftX = e.clientX - rect.left;
+        const shiftY = e.clientY - rect.top;
+        const onPointerMove = (moveEvt) => {
+          let newLeft = moveEvt.clientX - shiftX;
+          let newTop = moveEvt.clientY - shiftY;
+          const panelWidth = this.panel.offsetWidth || 380;
+          const maxLeft = Math.max(10, window.innerWidth - panelWidth - 10);
+          const maxTop = Math.max(10, window.innerHeight - 60);
+          newLeft = Math.max(10, Math.min(maxLeft, newLeft));
+          newTop = Math.max(10, Math.min(maxTop, newTop));
+          this._panelPosition = { left: newLeft, top: newTop };
+          this.panel.style.right = "auto";
+          this.panel.style.left = `${newLeft}px`;
+          this.panel.style.top = `${newTop}px`;
+        };
+        const onPointerUp = () => {
+          header.style.cursor = "grab";
+          window.removeEventListener("pointermove", onPointerMove, true);
+          window.removeEventListener("pointerup", onPointerUp, true);
+          window.removeEventListener("pointercancel", onPointerUp, true);
+        };
+        window.addEventListener("pointermove", onPointerMove, true);
+        window.addEventListener("pointerup", onPointerUp, true);
+        window.addEventListener("pointercancel", onPointerUp, true);
+      };
+      header.onpointerdown = onPointerDown;
     }
   };
 

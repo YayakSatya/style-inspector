@@ -4,6 +4,7 @@
  */
 
 import { generateMarkdownExport, generateSingleItemExport, copyToClipboard } from '../core/exporter.js';
+import { escapeHtml } from '../core/selector.js';
 
 export class InspectorPanel {
   /**
@@ -14,6 +15,7 @@ export class InspectorPanel {
     this.shadowRoot = shadowRoot;
     this.state = state;
     this.isMinimized = false;
+    this._panelPosition = null;
 
     this._createPanel();
     this._bindEvents();
@@ -46,7 +48,7 @@ export class InspectorPanel {
 
     const toast = document.createElement('div');
     toast.className = 'si-toast';
-    toast.innerHTML = `<span>📋</span><span>${message}</span>`;
+    toast.innerHTML = `<span>📋</span><span>${escapeHtml(message)}</span>`;
     this.shadowRoot.appendChild(toast);
 
     setTimeout(() => {
@@ -67,9 +69,16 @@ export class InspectorPanel {
 
     this.panel.style.display = 'flex';
 
+    // Restore user dragged position if available
+    if (this._panelPosition) {
+      this.panel.style.right = 'auto';
+      this.panel.style.left = `${this._panelPosition.left}px`;
+      this.panel.style.top = `${this._panelPosition.top}px`;
+    }
+
     if (this.isMinimized) {
       this.panel.innerHTML = `
-        <div class="si-panel-header">
+        <div class="si-panel-header" title="Drag to move">
           <div class="si-panel-title">
             <span>🎨</span>
             <span>Style Inspector (${pinnedList.length})</span>
@@ -88,12 +97,13 @@ export class InspectorPanel {
         this.state.isPanelOpen = false;
         this.render();
       };
+      this._initDraggable();
       return;
     }
 
     // Build full panel
     this.panel.innerHTML = `
-      <div class="si-panel-header">
+      <div class="si-panel-header" title="Drag to move">
         <div class="si-panel-title">
           <span>🎨</span>
           <span>Style Inspector</span>
@@ -112,7 +122,7 @@ export class InspectorPanel {
           <div class="si-pinned-pill ${item.id === this.state.activePinnedId ? 'active' : ''}"
                data-testid="style_inspector_panel_pinned_item"
                data-id="${item.id}">
-            <span>${item.label}</span>
+            <span>${escapeHtml(item.label)}</span>
             <span class="si-pinned-pill-close" data-remove="${item.id}">×</span>
           </div>
         `
@@ -135,6 +145,7 @@ export class InspectorPanel {
     `;
 
     this._attachEventListeners(activeItem);
+    this._initDraggable();
   }
 
   _renderActiveItemBody(item) {
@@ -143,7 +154,7 @@ export class InspectorPanel {
     return `
       <div class="si-panel-body">
         <div class="si-target-info">
-          <span class="si-target-selector" title="${item.selector}">${item.selector}</span>
+          <span class="si-target-selector" title="${escapeHtml(item.selector)}">${escapeHtml(item.selector)}</span>
           <button class="si-btn-icon" id="si-copy-selector-btn" title="Copy selector">⧉</button>
         </div>
 
@@ -318,7 +329,7 @@ export class InspectorPanel {
             <span>Element Notes (Optional)</span>
           </div>
           <textarea class="si-textarea" id="si-notes-input"
-                    placeholder="e.g. Instance of repeated card, desktop breakpoint only...">${item.notes || ''}</textarea>
+                    placeholder="e.g. Instance of repeated card, desktop breakpoint only...">${escapeHtml(item.notes || '')}</textarea>
         </div>
 
         <!-- Element-Level Actions -->
@@ -482,5 +493,55 @@ export class InspectorPanel {
     bindSync('#font-size-slider', '#font-size-input', 'fontSize');
     bindSync('#line-height-slider', '#line-height-input', 'lineHeight');
     bindSync('#letter-spacing-slider', '#letter-spacing-input', 'letterSpacing');
+  }
+
+  _initDraggable() {
+    const header = this.panel.querySelector('.si-panel-header');
+    if (!header) return;
+
+    header.style.cursor = 'grab';
+
+    const onPointerDown = (e) => {
+      // Don't start drag if clicking interactive buttons
+      if (e.target.closest('button') || e.target.closest('.si-btn-icon')) return;
+
+      e.preventDefault();
+      header.style.cursor = 'grabbing';
+
+      const rect = this.panel.getBoundingClientRect();
+      const shiftX = e.clientX - rect.left;
+      const shiftY = e.clientY - rect.top;
+
+      const onPointerMove = (moveEvt) => {
+        let newLeft = moveEvt.clientX - shiftX;
+        let newTop = moveEvt.clientY - shiftY;
+
+        // Viewport bounds checking
+        const panelWidth = this.panel.offsetWidth || 380;
+        const maxLeft = Math.max(10, window.innerWidth - panelWidth - 10);
+        const maxTop = Math.max(10, window.innerHeight - 60);
+
+        newLeft = Math.max(10, Math.min(maxLeft, newLeft));
+        newTop = Math.max(10, Math.min(maxTop, newTop));
+
+        this._panelPosition = { left: newLeft, top: newTop };
+        this.panel.style.right = 'auto';
+        this.panel.style.left = `${newLeft}px`;
+        this.panel.style.top = `${newTop}px`;
+      };
+
+      const onPointerUp = () => {
+        header.style.cursor = 'grab';
+        window.removeEventListener('pointermove', onPointerMove, true);
+        window.removeEventListener('pointerup', onPointerUp, true);
+        window.removeEventListener('pointercancel', onPointerUp, true);
+      };
+
+      window.addEventListener('pointermove', onPointerMove, true);
+      window.addEventListener('pointerup', onPointerUp, true);
+      window.addEventListener('pointercancel', onPointerUp, true);
+    };
+
+    header.onpointerdown = onPointerDown;
   }
 }
