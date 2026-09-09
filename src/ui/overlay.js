@@ -3,6 +3,7 @@
  */
 
 import { getElementLabel, escapeHtml } from '../core/selector.js';
+import { siIcon } from './icons.js';
 
 export class InspectorOverlay {
   /**
@@ -92,7 +93,7 @@ export class InspectorOverlay {
 
         const tag = document.createElement('div');
         tag.className = 'si-pinned-tag';
-        tag.innerHTML = `<span>📌</span><span>${escapeHtml(item.label)}</span>`;
+        tag.innerHTML = `${siIcon('Pin')}<span>${escapeHtml(item.label)}</span>`;
         box.appendChild(tag);
 
         this.container.appendChild(box);

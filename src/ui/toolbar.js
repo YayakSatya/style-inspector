@@ -2,6 +2,8 @@
  * Floating Toolbar and Active Mode Banner
  */
 
+import { siIcon } from './icons.js';
+
 export class InspectorToolbar {
   /**
    * @param {ShadowRoot} shadowRoot
@@ -97,12 +99,12 @@ export class InspectorToolbar {
 
     this.banner.innerHTML = `
       <div class="si-banner-left">
-        <span class="si-banner-icon">⚡</span>
+        <span class="si-banner-icon">${siIcon('Zap')}</span>
         <span><strong>Inspect Mode Active:</strong> Hover over an element, click to pin & adjust styles</span>
       </div>
       <div class="si-banner-keys">
         <span><span class="si-key">Esc</span> Exit Mode</span>
-        <button class="si-banner-close">✕</button>
+        <button class="si-banner-close">${siIcon('X')}</button>
       </div>
     `;
 

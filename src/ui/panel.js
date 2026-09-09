@@ -6,6 +6,7 @@
 import { generateMarkdownExport, generateSingleItemExport, copyToClipboard } from '../core/exporter.js';
 import { escapeHtml } from '../core/selector.js';
 import { rgbToHex } from '../core/styles.js';
+import { siIcon } from './icons.js';
 
 export class InspectorPanel {
   /**
@@ -43,13 +44,13 @@ export class InspectorPanel {
     });
   }
 
-  showToast(message = '✓ Copied to clipboard! Ready to paste into Antigravity.') {
+  showToast(message = 'Copied to clipboard! Ready to paste into Antigravity.') {
     const existing = this.shadowRoot.querySelector('.si-toast');
     if (existing) existing.remove();
 
     const toast = document.createElement('div');
     toast.className = 'si-toast';
-    toast.innerHTML = `<span>📋</span><span>${escapeHtml(message)}</span>`;
+    toast.innerHTML = `${siIcon('Check')}<span>${escapeHtml(message)}</span>`;
     this.shadowRoot.appendChild(toast);
 
     setTimeout(() => {
@@ -81,12 +82,12 @@ export class InspectorPanel {
       this.panel.innerHTML = `
         <div class="si-panel-header" title="Drag to move">
           <div class="si-panel-title">
-            <span>🎨</span>
+            ${siIcon('Palette')}
             <span>Style Inspector (${pinnedList.length})</span>
           </div>
           <div class="si-panel-header-actions">
-            <button class="si-btn-icon" id="si-expand-btn" title="Expand panel">🗖</button>
-            <button class="si-btn-icon" id="si-close-btn" title="Close">✕</button>
+            <button class="si-btn-icon" id="si-expand-btn" title="Expand panel">${siIcon('Maximize2')}</button>
+            <button class="si-btn-icon" id="si-close-btn" title="Close">${siIcon('X')}</button>
           </div>
         </div>
       `;
@@ -106,13 +107,13 @@ export class InspectorPanel {
     this.panel.innerHTML = `
       <div class="si-panel-header" title="Drag to move">
         <div class="si-panel-title">
-          <span>🎨</span>
+          ${siIcon('Palette')}
           <span>Style Inspector</span>
           <span class="si-toolbar-badge">${pinnedList.length}</span>
         </div>
         <div class="si-panel-header-actions">
-          <button class="si-btn-icon" id="si-minimize-btn" title="Minimize panel">🗕</button>
-          <button class="si-btn-icon" id="si-close-btn" title="Close panel">✕</button>
+          <button class="si-btn-icon" id="si-minimize-btn" title="Minimize panel">${siIcon('Minimize2')}</button>
+          <button class="si-btn-icon" id="si-close-btn" title="Close panel">${siIcon('X')}</button>
         </div>
       </div>
 
@@ -124,7 +125,7 @@ export class InspectorPanel {
                data-testid="style_inspector_panel_pinned_item"
                data-id="${item.id}">
             <span>${escapeHtml(item.label)}</span>
-            <span class="si-pinned-pill-close" data-remove="${item.id}">×</span>
+            <span class="si-pinned-pill-close" data-remove="${item.id}">${siIcon('X', 12)}</span>
           </div>
         `
           )
@@ -136,10 +137,10 @@ export class InspectorPanel {
       <div class="si-panel-footer">
         <div class="si-action-row">
           <button class="si-btn si-btn-secondary" id="si-reset-all-btn">
-            ↺ Reset All (${pinnedList.length})
+            Reset All (${pinnedList.length})
           </button>
-          <button class="si-btn si-btn-primary" data-testid="style_inspector_panel_export_button" id="si-export-all-btn">
-            📋 Export All to Clipboard
+          <button class="si-btn si-btn-white" data-testid="style_inspector_panel_export_button" id="si-export-all-btn">
+            Copy to Clipboard
           </button>
         </div>
       </div>
@@ -156,7 +157,7 @@ export class InspectorPanel {
       <div class="si-panel-body">
         <div class="si-target-info">
           <span class="si-target-selector" title="${escapeHtml(item.selector)}">${escapeHtml(item.selector)}</span>
-          <button class="si-btn-icon" id="si-copy-selector-btn" title="Copy selector">⧉</button>
+          <button class="si-btn-icon" id="si-copy-selector-btn" title="Copy selector">${siIcon('Copy')}</button>
         </div>
 
         <!-- Padding Section -->
@@ -176,45 +177,34 @@ export class InspectorPanel {
           ${
             item.linkPadding
               ? `
-            <div class="si-control-row">
-              <span class="si-control-label">All Sides</span>
-              <input type="range" class="si-slider" min="0" max="120" value="${cur.paddingTop}" id="pad-slider-all">
-              <input type="number" class="si-input-number"
+            <div class="si-spacing-box si-spacing-box-linked">
+              <span class="si-spacing-label">Padding</span>
+              <input type="number" class="si-spacing-edge si-spacing-all"
                      data-testid="style_inspector_panel_padding_input"
                      data-side="all"
                      value="${cur.paddingTop}" id="pad-input-all">
             </div>
           `
               : `
-            <div class="si-dir-grid">
-              <div class="si-dir-item">
-                <span class="si-dir-label">Top</span>
-                <input type="number" class="si-input-number"
-                       data-testid="style_inspector_panel_padding_input"
-                       data-side="top"
-                       value="${cur.paddingTop}" id="pad-input-top">
-              </div>
-              <div class="si-dir-item">
-                <span class="si-dir-label">Right</span>
-                <input type="number" class="si-input-number"
-                       data-testid="style_inspector_panel_padding_input"
-                       data-side="right"
-                       value="${cur.paddingRight}" id="pad-input-right">
-              </div>
-              <div class="si-dir-item">
-                <span class="si-dir-label">Bottom</span>
-                <input type="number" class="si-input-number"
-                       data-testid="style_inspector_panel_padding_input"
-                       data-side="bottom"
-                       value="${cur.paddingBottom}" id="pad-input-bottom">
-              </div>
-              <div class="si-dir-item">
-                <span class="si-dir-label">Left</span>
-                <input type="number" class="si-input-number"
-                       data-testid="style_inspector_panel_padding_input"
-                       data-side="left"
-                       value="${cur.paddingLeft}" id="pad-input-left">
-              </div>
+            <div class="si-spacing-box">
+              <span class="si-spacing-label">Padding</span>
+              <input type="number" class="si-spacing-edge si-spacing-top"
+                     data-testid="style_inspector_panel_padding_input"
+                     data-side="top" title="Top"
+                     value="${cur.paddingTop}" id="pad-input-top">
+              <input type="number" class="si-spacing-edge si-spacing-left"
+                     data-testid="style_inspector_panel_padding_input"
+                     data-side="left" title="Left"
+                     value="${cur.paddingLeft}" id="pad-input-left">
+              <div class="si-spacing-center"></div>
+              <input type="number" class="si-spacing-edge si-spacing-right"
+                     data-testid="style_inspector_panel_padding_input"
+                     data-side="right" title="Right"
+                     value="${cur.paddingRight}" id="pad-input-right">
+              <input type="number" class="si-spacing-edge si-spacing-bottom"
+                     data-testid="style_inspector_panel_padding_input"
+                     data-side="bottom" title="Bottom"
+                     value="${cur.paddingBottom}" id="pad-input-bottom">
             </div>
           `
           }
@@ -237,45 +227,34 @@ export class InspectorPanel {
           ${
             item.linkMargin
               ? `
-            <div class="si-control-row">
-              <span class="si-control-label">All Sides</span>
-              <input type="range" class="si-slider" min="0" max="120" value="${cur.marginTop}" id="mar-slider-all">
-              <input type="number" class="si-input-number"
+            <div class="si-spacing-box si-spacing-box-linked">
+              <span class="si-spacing-label">Margin</span>
+              <input type="number" class="si-spacing-edge si-spacing-all"
                      data-testid="style_inspector_panel_margin_input"
                      data-side="all"
                      value="${cur.marginTop}" id="mar-input-all">
             </div>
           `
               : `
-            <div class="si-dir-grid">
-              <div class="si-dir-item">
-                <span class="si-dir-label">Top</span>
-                <input type="number" class="si-input-number"
-                       data-testid="style_inspector_panel_margin_input"
-                       data-side="top"
-                       value="${cur.marginTop}" id="mar-input-top">
-              </div>
-              <div class="si-dir-item">
-                <span class="si-dir-label">Right</span>
-                <input type="number" class="si-input-number"
-                       data-testid="style_inspector_panel_margin_input"
-                       data-side="right"
-                       value="${cur.marginRight}" id="mar-input-right">
-              </div>
-              <div class="si-dir-item">
-                <span class="si-dir-label">Bottom</span>
-                <input type="number" class="si-input-number"
-                       data-testid="style_inspector_panel_margin_input"
-                       data-side="bottom"
-                       value="${cur.marginBottom}" id="mar-input-bottom">
-              </div>
-              <div class="si-dir-item">
-                <span class="si-dir-label">Left</span>
-                <input type="number" class="si-input-number"
-                       data-testid="style_inspector_panel_margin_input"
-                       data-side="left"
-                       value="${cur.marginLeft}" id="mar-input-left">
-              </div>
+            <div class="si-spacing-box">
+              <span class="si-spacing-label">Margin</span>
+              <input type="number" class="si-spacing-edge si-spacing-top"
+                     data-testid="style_inspector_panel_margin_input"
+                     data-side="top" title="Top"
+                     value="${cur.marginTop}" id="mar-input-top">
+              <input type="number" class="si-spacing-edge si-spacing-left"
+                     data-testid="style_inspector_panel_margin_input"
+                     data-side="left" title="Left"
+                     value="${cur.marginLeft}" id="mar-input-left">
+              <div class="si-spacing-center"></div>
+              <input type="number" class="si-spacing-edge si-spacing-right"
+                     data-testid="style_inspector_panel_margin_input"
+                     data-side="right" title="Right"
+                     value="${cur.marginRight}" id="mar-input-right">
+              <input type="number" class="si-spacing-edge si-spacing-bottom"
+                     data-testid="style_inspector_panel_margin_input"
+                     data-side="bottom" title="Bottom"
+                     value="${cur.marginBottom}" id="mar-input-bottom">
             </div>
           `
           }
@@ -296,66 +275,38 @@ export class InspectorPanel {
         </div>
 
         <!-- Typography Section -->
-        <div class="si-section">
-          <div class="si-section-header">
-            <span>Typography</span>
-          </div>
-          <div class="si-control-row">
-            <span class="si-control-label">Font Size</span>
-            <input type="range" class="si-slider" min="8" max="72" value="${cur.fontSize}" id="font-size-slider">
-            <input type="number" class="si-input-number"
-                   data-testid="style_inspector_panel_font_size_input"
-                   value="${cur.fontSize}" id="font-size-input">
-          </div>
-
-          <div class="si-control-row">
-            <span class="si-control-label">Line Height</span>
-            <input type="range" class="si-slider" min="0.8" max="3.0" step="0.05" value="${cur.lineHeight}" id="line-height-slider">
-            <input type="number" class="si-input-number" step="0.05"
-                   data-testid="style_inspector_panel_line_height_input"
-                   value="${cur.lineHeight}" id="line-height-input">
-          </div>
-
-          <div class="si-control-row">
-            <span class="si-control-label">Letter Spacing</span>
-            <input type="range" class="si-slider" min="-2" max="10" step="0.1" value="${cur.letterSpacing}" id="letter-spacing-slider">
-            <input type="number" class="si-input-number" step="0.1"
-                   value="${cur.letterSpacing}" id="letter-spacing-input">
-          </div>
-
-          <div class="si-control-row">
-            <span class="si-control-label">Font Weight</span>
-            <select class="si-select" data-testid="style_inspector_panel_font_weight_select" id="font-weight-select">
-              <option value="100" ${`${cur.fontWeight}` === '100' ? 'selected' : ''}>100 - Thin</option>
-              <option value="200" ${`${cur.fontWeight}` === '200' ? 'selected' : ''}>200 - Extra Light</option>
-              <option value="300" ${`${cur.fontWeight}` === '300' ? 'selected' : ''}>300 - Light</option>
-              <option value="400" ${`${cur.fontWeight}` === '400' || !cur.fontWeight ? 'selected' : ''}>400 - Normal</option>
-              <option value="500" ${`${cur.fontWeight}` === '500' ? 'selected' : ''}>500 - Medium</option>
-              <option value="600" ${`${cur.fontWeight}` === '600' ? 'selected' : ''}>600 - Semi Bold</option>
-              <option value="700" ${`${cur.fontWeight}` === '700' ? 'selected' : ''}>700 - Bold</option>
-              <option value="800" ${`${cur.fontWeight}` === '800' ? 'selected' : ''}>800 - Extra Bold</option>
-              <option value="900" ${`${cur.fontWeight}` === '900' ? 'selected' : ''}>900 - Black</option>
-            </select>
-          </div>
-
-          <div class="si-control-row">
-            <span class="si-control-label">Transform</span>
-            <select class="si-select" data-testid="style_inspector_panel_text_transform_select" id="text-transform-select">
-              <option value="none" ${cur.textTransform === 'none' || !cur.textTransform ? 'selected' : ''}>none - Normal</option>
-              <option value="uppercase" ${cur.textTransform === 'uppercase' ? 'selected' : ''}>uppercase - UPPERCASE</option>
-              <option value="lowercase" ${cur.textTransform === 'lowercase' ? 'selected' : ''}>lowercase - lowercase</option>
-              <option value="capitalize" ${cur.textTransform === 'capitalize' ? 'selected' : ''}>capitalize - Capitalize</option>
-            </select>
-          </div>
-
-          <div class="si-control-row">
-            <span class="si-control-label">Align</span>
-            <select class="si-select" data-testid="style_inspector_panel_text_align_select" id="text-align-select">
-              <option value="left" ${cur.textAlign === 'left' || !cur.textAlign ? 'selected' : ''}>left - Left</option>
-              <option value="center" ${cur.textAlign === 'center' ? 'selected' : ''}>center - Center</option>
-              <option value="right" ${cur.textAlign === 'right' ? 'selected' : ''}>right - Right</option>
-              <option value="justify" ${cur.textAlign === 'justify' ? 'selected' : ''}>justify - Justify</option>
-            </select>
+        <div class="si-section si-typography-section">
+          <div class="si-section-header"><span>Typography</span></div>
+          <div class="si-typography-grid">
+            <label class="si-type-control si-type-select">
+              <select data-testid="style_inspector_panel_font_weight_select" id="font-weight-select" aria-label="Font weight">
+                <option value="100" ${`${cur.fontWeight}` === '100' ? 'selected' : ''}>100 - Thin</option>
+                <option value="200" ${`${cur.fontWeight}` === '200' ? 'selected' : ''}>200 - Extra Light</option>
+                <option value="300" ${`${cur.fontWeight}` === '300' ? 'selected' : ''}>300 - Light</option>
+                <option value="400" ${`${cur.fontWeight}` === '400' || !cur.fontWeight ? 'selected' : ''}>400 - Normal</option>
+                <option value="500" ${`${cur.fontWeight}` === '500' ? 'selected' : ''}>500 - Medium</option>
+                <option value="600" ${`${cur.fontWeight}` === '600' ? 'selected' : ''}>600 - Semi Bold</option>
+                <option value="700" ${`${cur.fontWeight}` === '700' ? 'selected' : ''}>700 - Bold</option>
+                <option value="800" ${`${cur.fontWeight}` === '800' ? 'selected' : ''}>800 - Extra Bold</option>
+                <option value="900" ${`${cur.fontWeight}` === '900' ? 'selected' : ''}>900 - Black</option>
+              </select>
+              ${siIcon('ChevronDown', 13)}
+            </label>
+            <label class="si-type-control si-type-value si-type-fontsize">
+              <span class="si-type-glyph">AA</span>
+              <input type="number" data-testid="style_inspector_panel_font_size_input" value="${cur.fontSize}" id="font-size-input" aria-label="Font size">
+              <select id="font-size-preset" aria-label="Font size preset" class="si-fontsize-preset">
+                <option value="">—</option>
+                ${[10, 11, 12, 13, 14, 15, 16, 20, 24, 32, 36, 40, 48, 64, 96, 128].map((s) => `<option value="${s}" ${Number(cur.fontSize) === s ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+            </label>
+            <label class="si-type-control si-type-value"><input type="color" class="si-color-swatch" value="${rgbToHex(cur.color, '#ffffff')}" id="color-picker" title="Pick text color"><input type="text" data-testid="style_inspector_panel_color_input" value="${escapeHtml(cur.color)}" id="color-input" aria-label="Text color"></label>
+            <label class="si-type-control si-type-value"><span class="si-type-glyph si-type-underlined">A</span><input type="number" step="0.05" data-testid="style_inspector_panel_line_height_input" value="${cur.lineHeight}" id="line-height-input" aria-label="Line height"><span class="si-type-dash">—</span></label>
+            <div class="si-type-control si-type-align" role="group" aria-label="Text alignment">
+              ${['left', 'center', 'right', 'justify'].map(align => `<button type="button" class="si-type-icon-btn ${cur.textAlign === align || (!cur.textAlign && align === 'left') ? 'active' : ''}" data-align="${align}" title="Align ${align}">${siIcon(`Align${align[0].toUpperCase()}${align.slice(1)}`, 15)}</button>`).join('')}
+            </div>
+            <label class="si-type-control si-type-value"><span class="si-type-glyph">|A|</span><input type="number" step="0.1" value="${cur.letterSpacing}" id="letter-spacing-input" aria-label="Letter spacing"><span>em</span></label>
+            <label class="si-type-control si-type-transform"><span class="si-type-glyph">Aa</span><select data-testid="style_inspector_panel_text_transform_select" id="text-transform-select" aria-label="Text transform"><option value="none" ${cur.textTransform === 'none' || !cur.textTransform ? 'selected' : ''}>Normal</option><option value="uppercase" ${cur.textTransform === 'uppercase' ? 'selected' : ''}>Uppercase</option><option value="lowercase" ${cur.textTransform === 'lowercase' ? 'selected' : ''}>Lowercase</option><option value="capitalize" ${cur.textTransform === 'capitalize' ? 'selected' : ''}>Capitalize</option></select></label>
           </div>
         </div>
 
@@ -363,16 +314,6 @@ export class InspectorPanel {
         <div class="si-section">
           <div class="si-section-header">
             <span>Colors</span>
-          </div>
-
-          <div class="si-control-row">
-            <span class="si-control-label">Text Color</span>
-            <div class="si-color-picker-wrap">
-              <input type="color" class="si-color-swatch" value="${rgbToHex(cur.color, '#ffffff')}" id="color-picker" title="Pick text color">
-              <input type="text" class="si-input-text"
-                     data-testid="style_inspector_panel_color_input"
-                     value="${escapeHtml(cur.color)}" id="color-input" placeholder="#ffffff or rgb(...)">
-            </div>
           </div>
 
           <div class="si-control-row">
@@ -398,10 +339,10 @@ export class InspectorPanel {
         <!-- Element-Level Actions -->
         <div class="si-action-row">
           <button class="si-btn si-btn-danger" data-testid="style_inspector_panel_reset_button" id="si-reset-item-btn">
-            ↺ Reset
+            Reset
           </button>
           <button class="si-btn si-btn-secondary" data-testid="style_inspector_panel_copy_item_button" id="si-copy-item-btn">
-            📋 Copy Item MD
+            Copy Item MD
           </button>
         </div>
       </div>
@@ -457,7 +398,7 @@ export class InspectorPanel {
         const markdown = generateMarkdownExport(this.state.getPinnedList());
         const ok = await copyToClipboard(markdown);
         if (ok) {
-          this.showToast('✓ Export copied to clipboard!');
+          this.showToast('Export copied to clipboard!');
         } else {
           alert('Failed to copy to clipboard. Please allow clipboard permissions.');
         }
@@ -502,7 +443,7 @@ export class InspectorPanel {
         const markdown = generateSingleItemExport(activeItem);
         const ok = await copyToClipboard(markdown);
         if (ok) {
-          this.showToast('✓ Item markdown copied to clipboard!');
+          this.showToast('Item markdown copied to clipboard!');
         }
       };
     }
@@ -553,9 +494,28 @@ export class InspectorPanel {
     }
 
     bindSync('#gap-slider', '#gap-input', 'gap');
-    bindSync('#font-size-slider', '#font-size-input', 'fontSize');
-    bindSync('#line-height-slider', '#line-height-input', 'lineHeight');
-    bindSync('#letter-spacing-slider', '#letter-spacing-input', 'letterSpacing');
+    bindSync(null, '#font-size-input', 'fontSize');
+
+    const fontSizePreset = this.panel.querySelector('#font-size-preset');
+    if (fontSizePreset) {
+      fontSizePreset.onchange = (event) => {
+        if (!event.target.value) return;
+        const fontSizeInput = this.panel.querySelector('#font-size-input');
+        if (fontSizeInput) fontSizeInput.value = event.target.value;
+        this.state.updateStyle(activeItem.id, 'fontSize', parseFloat(event.target.value));
+      };
+    }
+
+    bindSync(null, '#line-height-input', 'lineHeight');
+    bindSync(null, '#letter-spacing-input', 'letterSpacing');
+
+    this.panel.querySelectorAll('[data-align]').forEach(button => {
+      button.onclick = () => {
+        const align = button.getAttribute('data-align');
+        this.panel.querySelectorAll('[data-align]').forEach(item => item.classList.toggle('active', item === button));
+        this.state.updateStyle(activeItem.id, 'textAlign', align);
+      };
+    });
 
     const weightSelect = this.panel.querySelector('#font-weight-select');
     if (weightSelect) {
@@ -568,13 +528,6 @@ export class InspectorPanel {
     if (transformSelect) {
       transformSelect.onchange = (e) => {
         this.state.updateStyle(activeItem.id, 'textTransform', e.target.value);
-      };
-    }
-
-    const alignSelect = this.panel.querySelector('#text-align-select');
-    if (alignSelect) {
-      alignSelect.onchange = (e) => {
-        this.state.updateStyle(activeItem.id, 'textAlign', e.target.value);
       };
     }
 
