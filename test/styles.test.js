@@ -1,6 +1,12 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePx, computeStyleDiff, rgbToHex } from '../src/core/styles.js';
+import {
+  parsePx,
+  computeStyleDiff,
+  rgbToHex,
+  readElementStyles,
+  DEFAULT_LINE_HEIGHT
+} from '../src/core/styles.js';
 
 describe('Styles & Diff Calculator', () => {
   test('parsePx correctly converts css px strings to numbers', () => {
@@ -102,6 +108,55 @@ describe('Styles & Diff Calculator', () => {
     assert.deepEqual(diffs[1], { property: 'font-size', before: '14px', after: '16px' });
     assert.deepEqual(diffs[2], { property: 'line-height', before: '1.2', after: '1.4' });
     assert.deepEqual(diffs[3], { property: 'letter-spacing', before: '0px', after: '0.5px' });
+  });
+
+  test('a line-height of normal is reported as normal, not as a made-up ratio', () => {
+    const win = {
+      getComputedStyle: () => ({
+        paddingTop: '0px', paddingRight: '0px', paddingBottom: '0px', paddingLeft: '0px',
+        marginTop: '0px', marginRight: '0px', marginBottom: '0px', marginLeft: '0px',
+        rowGap: '0px', columnGap: '0px', gap: '0px',
+        fontSize: '16px',
+        lineHeight: 'normal',
+        letterSpacing: 'normal'
+      })
+    };
+
+    const baseline = readElementStyles({ nodeType: 1 }, win);
+    assert.equal(baseline.lineHeightSource, 'normal');
+    // The numeric field still gives the panel control a usable start position.
+    assert.equal(baseline.lineHeight, DEFAULT_LINE_HEIGHT);
+
+    const current = { ...baseline, lineHeight: 1.5, lineHeightSource: 'ratio' };
+    const diffs = computeStyleDiff(baseline, current);
+
+    assert.equal(diffs.length, 1);
+    assert.deepEqual(diffs[0], { property: 'line-height', before: 'normal', after: '1.5' });
+  });
+
+  test('a declared line-height keeps its numeric before value', () => {
+    const win = {
+      getComputedStyle: () => ({
+        paddingTop: '0px', paddingRight: '0px', paddingBottom: '0px', paddingLeft: '0px',
+        marginTop: '0px', marginRight: '0px', marginBottom: '0px', marginLeft: '0px',
+        rowGap: '0px', columnGap: '0px', gap: '0px',
+        fontSize: '16px',
+        lineHeight: '24px',
+        letterSpacing: 'normal'
+      })
+    };
+
+    const baseline = readElementStyles({ nodeType: 1 }, win);
+    assert.equal(baseline.lineHeightSource, 'ratio');
+    assert.equal(baseline.lineHeight, 1.5);
+
+    const diffs = computeStyleDiff(baseline, { ...baseline, lineHeight: 1.8 });
+    assert.deepEqual(diffs[0], { property: 'line-height', before: '1.5', after: '1.8' });
+  });
+
+  test('an untouched normal line-height produces no diff line', () => {
+    const baseline = { lineHeight: DEFAULT_LINE_HEIGHT, lineHeightSource: 'normal' };
+    assert.equal(computeStyleDiff(baseline, { ...baseline }).length, 0);
   });
 
   test('computeStyleDiff detects font-weight and text-transform changes', () => {

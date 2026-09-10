@@ -5,7 +5,7 @@
   "main": "dist/style-inspector.js",
   "type": "module",
   "scripts": {
-    "test": "node --test test/**/*.test.js && node test/browser-e2e.js",
+    "test": "node --test test/**/*.test.js",
     "test:unit": "node --test test/**/*.test.js",
     "test:e2e": "node test/browser-e2e.js",
     "build": "node build.js",
@@ -18,7 +18,7 @@
     "antigravity",
     "styling"
   ],
-  "author": "",
+  "author": "YayakSatya <satyautama09@gmail.com>",
   "license": "MIT",
   "devDependencies": {
     "esbuild": "^0.28.2"

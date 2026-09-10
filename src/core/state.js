@@ -3,7 +3,14 @@
  */
 
 import { getElementSelector, getElementLabel } from './selector.js';
-import { readElementStyles, applyStyleProperty, resetElementStyles } from './styles.js';
+import {
+  readElementStyles,
+  applyStyleProperty,
+  resetElementStyles,
+  readUnitContext
+} from './styles.js';
+import { readElementText, applyElementText, resetElementText } from './text.js';
+import { SHORTHAND_GROUPS, isTextualProperty } from './schema.js';
 
 export class InspectorState {
   constructor() {
@@ -14,6 +21,36 @@ export class InspectorState {
     this.activePinnedId = null;
     this._idCounter = 0;
     this._listeners = new Map();
+
+    // Session-wide export settings, shared by every pinned element.
+    this.exportFormat = 'markdown';
+    this.exportUnit = 'px';
+    this.customInstruction = '';
+  }
+
+  /**
+   * @param {'markdown'|'css'|'json'} format
+   */
+  setExportFormat(format) {
+    this.exportFormat = format;
+    this.emit('stateUpdated', this);
+  }
+
+  /**
+   * @param {'px'|'rem'|'em'} unit
+   */
+  setExportUnit(unit) {
+    this.exportUnit = unit;
+    this.emit('stateUpdated', this);
+  }
+
+  /**
+   * Overrides the instruction line appended to an export. Empty means default.
+   * @param {string} instruction
+   */
+  setCustomInstruction(instruction) {
+    this.customInstruction = instruction;
+    this.emit('stateUpdated', this);
   }
 
   on(event, fn) {
@@ -94,6 +131,8 @@ export class InspectorState {
     const label = getElementLabel(element);
     const baseline = readElementStyles(element);
     const current = { ...baseline };
+    const text = readElementText(element);
+    const unitContext = readUnitContext(element);
 
     const item = {
       id,
@@ -102,9 +141,20 @@ export class InspectorState {
       label,
       baseline,
       current,
+      baselineText: text.text,
+      currentText: text.text,
+      textEditable: text.editable,
+      textMode: text.mode,
+      textNode: text.node,
+      textPrefix: text.prefix,
+      textSuffix: text.suffix,
+      textReason: text.reason,
+      rootFontSize: unitContext.rootFontSize,
+      parentFontSize: unitContext.parentFontSize,
       notes: '',
       linkPadding: true,
       linkMargin: true,
+      linkRadius: true,
       timestamp: Date.now()
     };
 
@@ -155,35 +205,66 @@ export class InspectorState {
     const numVal = typeof value === 'number' ? value : parseFloat(value) || 0;
 
     // Handle linked padding
-    if (item.linkPadding && (prop === 'paddingAll' || prop.startsWith('padding'))) {
-      const sides = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'];
-      for (const side of sides) {
-        item.current[side] = numVal;
-        applyStyleProperty(item.element, side, numVal, 'px');
+    // A four-sided group whose "link" switch is on writes all four sides at
+    // once, whether the edit came from its combined control or from one side.
+    const linkedGroup = SHORTHAND_GROUPS.find(
+      group =>
+        // The combined control always writes all four sides — it only exists
+        // while the group is linked.
+        prop === group.allProp ||
+        (item[group.linkFlag] && group.keys.includes(prop))
+    );
+
+    if (linkedGroup) {
+      for (const key of linkedGroup.keys) {
+        item.current[key] = numVal;
+        applyStyleProperty(item.element, key, numVal, 'px');
       }
-    }
-    // Handle linked margin
-    else if (item.linkMargin && (prop === 'marginAll' || prop.startsWith('margin'))) {
-      const sides = ['marginTop', 'marginRight', 'marginBottom', 'marginLeft'];
-      for (const side of sides) {
-        item.current[side] = numVal;
-        applyStyleProperty(item.element, side, numVal, 'px');
+    } else {
+      const textual = isTextualProperty(prop);
+      item.current[prop] = textual ? `${value}` : numVal;
+
+      if (prop === 'lineHeight') {
+        // The user has now declared an explicit ratio, so the record is no
+        // longer describing an inherited `normal`.
+        item.current.lineHeightSource = 'ratio';
       }
-    }
-    // Individual property
-    else {
-      const isStringProp =
-        prop === 'lineHeight' ||
-        prop === 'fontWeight' ||
-        prop === 'textTransform' ||
-        prop === 'textAlign' ||
-        prop === 'color' ||
-        prop === 'backgroundColor';
-      item.current[prop] = isStringProp ? `${value}` : numVal;
-      applyStyleProperty(item.element, prop, value, isStringProp ? '' : 'px');
+
+      applyStyleProperty(item.element, prop, item.current[prop], 'px');
     }
 
     this.emit('styleChanged', { item, prop, value });
+    this.emit('stateUpdated', this);
+  }
+
+  /**
+   * Replaces the visible text of a pinned element.
+   * @param {string} id
+   * @param {string} text
+   */
+  setText(id, text) {
+    const item = this.pinnedItems.get(id);
+    if (!item || !item.textEditable) return;
+
+    item.currentText = text;
+    applyElementText(item.element, item, text);
+
+    this.emit('styleChanged', { item, textChanged: true });
+    this.emit('stateUpdated', this);
+  }
+
+  /**
+   * Restores a pinned element's text without touching its styles.
+   * @param {string} id
+   */
+  resetText(id) {
+    const item = this.pinnedItems.get(id);
+    if (!item) return;
+
+    resetElementText(item.element);
+    item.currentText = item.baselineText;
+
+    this.emit('styleChanged', { item, textChanged: true });
     this.emit('stateUpdated', this);
   }
 
@@ -194,18 +275,29 @@ export class InspectorState {
     this.emit('stateUpdated', this);
   }
 
-  setLinkPadding(id, linked) {
+  /**
+   * Toggles the "link all sides" switch for a four-sided group.
+   * @param {string} id
+   * @param {string} groupName - 'padding', 'margin', or 'border-radius'
+   * @param {boolean} linked
+   */
+  setLinked(id, groupName, linked) {
     const item = this.pinnedItems.get(id);
     if (!item) return;
-    item.linkPadding = Boolean(linked);
+
+    const group = SHORTHAND_GROUPS.find(candidate => candidate.name === groupName);
+    if (!group) return;
+
+    item[group.linkFlag] = Boolean(linked);
     this.emit('stateUpdated', this);
   }
 
+  setLinkPadding(id, linked) {
+    this.setLinked(id, 'padding', linked);
+  }
+
   setLinkMargin(id, linked) {
-    const item = this.pinnedItems.get(id);
-    if (!item) return;
-    item.linkMargin = Boolean(linked);
-    this.emit('stateUpdated', this);
+    this.setLinked(id, 'margin', linked);
   }
 
   resetElement(id) {
@@ -213,16 +305,38 @@ export class InspectorState {
     if (!item) return;
 
     resetElementStyles(item.element);
+    resetElementText(item.element);
     item.current = { ...item.baseline };
+    item.currentText = item.baselineText;
     this.emit('styleChanged', { item, reset: true });
     this.emit('stateUpdated', this);
   }
 
-  resetAll() {
+  /**
+   * Restores every pinned element to its baseline while keeping the pins,
+   * so the session survives the reset.
+   */
+  resetAllStyles() {
     for (const item of this.pinnedItems.values()) {
       resetElementStyles(item.element);
+      resetElementText(item.element);
       item.current = { ...item.baseline };
+      item.currentText = item.baselineText;
+      this.emit('styleChanged', { item, reset: true });
     }
+    this.emit('stateUpdated', this);
+  }
+
+  /**
+   * Restores every pinned element and then discards the whole session.
+   */
+  clearAll() {
+    for (const item of this.pinnedItems.values()) {
+      resetElementStyles(item.element);
+      resetElementText(item.element);
+    }
+    this.pinnedItems.clear();
+    this.activePinnedId = null;
     this.emit('stateUpdated', this);
   }
 

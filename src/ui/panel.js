@@ -3,10 +3,29 @@
  * Implements all controls and automation IDs defined in PRD Section 8.
  */
 
-import { generateMarkdownExport, generateSingleItemExport, copyToClipboard } from '../core/exporter.js';
+import {
+  generateExport,
+  generateSingleItemExport,
+  copyToClipboard,
+  downloadExport,
+  EXPORT_FORMATS
+} from '../core/exporter.js';
 import { escapeHtml } from '../core/selector.js';
-import { rgbToHex } from '../core/styles.js';
+import { SHORTHAND_GROUPS } from '../core/schema.js';
+import { EXPORT_UNITS } from '../core/css-value.js';
 import { siIcon } from './icons.js';
+import { SECTIONS } from './sections/index.js';
+import { section } from './sections/shared.js';
+import * as alignRail from './sections/align.js';
+
+/**
+ * Sections that start collapsed. These are the ones an inspection rarely opens
+ * with — the panel is long enough that showing all of them at once buries the
+ * controls people actually came for. Layout used to be here; it moved up the
+ * order in Phase 8 and now earns its space, and it already hides its own
+ * flex/grid rows when the element does not lay out children.
+ */
+const DEFAULT_COLLAPSED = ['corner-radius', 'border', 'effects'];
 
 export class InspectorPanel {
   /**
@@ -17,7 +36,11 @@ export class InspectorPanel {
     this.shadowRoot = shadowRoot;
     this.state = state;
     this.isMinimized = false;
+    this.showInstruction = false;
     this._panelPosition = null;
+    // Which sections are folded away. Deliberately panel state rather than
+    // InspectorState: it is pure presentation and must not reach the export.
+    this.collapsed = new Set(DEFAULT_COLLAPSED);
 
     this._createPanel();
     this._bindEvents();
@@ -78,11 +101,31 @@ export class InspectorPanel {
       this.panel.style.top = `${this._panelPosition.top}px`;
     }
 
+    // Skip destructive full rebuild while user is actively typing/selecting in a
+    // panel field — innerHTML replace would kill focus and jump scroll to top.
+    // bindSync/bindColor already mirror the value live without a re-render.
+    const focusedEl = this.shadowRoot.activeElement;
+    if (
+      focusedEl &&
+      this.panel.contains(focusedEl) &&
+      (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'SELECT' || focusedEl.tagName === 'TEXTAREA')
+    ) {
+      return;
+    }
+
+    // A rebuild replaces .si-panel-body, and the new node starts at scrollTop 0.
+    // Anything that applies a style without holding focus — a segmented button,
+    // the align rail, a link-all switch — would otherwise throw the user back to
+    // the top of the panel on every click. Remember where they were, and which
+    // control they were on, so a keyboard user keeps their place too.
+    const previousBody = this.panel.querySelector('.si-panel-body');
+    const scrollTop = previousBody ? previousBody.scrollTop : 0;
+    const focusedId = focusedEl && focusedEl.id ? focusedEl.id : null;
+
     if (this.isMinimized) {
       this.panel.innerHTML = `
         <div class="si-panel-header" title="Drag to move">
           <div class="si-panel-title">
-            ${siIcon('Palette')}
             <span>Style Inspector (${pinnedList.length})</span>
           </div>
           <div class="si-panel-header-actions">
@@ -107,7 +150,6 @@ export class InspectorPanel {
     this.panel.innerHTML = `
       <div class="si-panel-header" title="Drag to move">
         <div class="si-panel-title">
-          ${siIcon('Palette')}
           <span>Style Inspector</span>
           <span class="si-toolbar-badge">${pinnedList.length}</span>
         </div>
@@ -134,215 +176,146 @@ export class InspectorPanel {
 
       ${activeItem ? this._renderActiveItemBody(activeItem) : '<div class="si-panel-body">No element selected.</div>'}
 
-      <div class="si-panel-footer">
-        <div class="si-action-row">
-          <button class="si-btn si-btn-secondary" id="si-reset-all-btn">
-            Reset All (${pinnedList.length})
-          </button>
-          <button class="si-btn si-btn-white" data-testid="style_inspector_panel_export_button" id="si-export-all-btn">
-            Copy to Clipboard
-          </button>
-        </div>
-      </div>
+      ${this._renderFooter(pinnedList)}
     `;
 
     this._attachEventListeners(activeItem);
     this._initDraggable();
+    this._restoreScroll(scrollTop, focusedId);
+  }
+
+  /**
+   * Puts the body back where it was after a rebuild, and returns focus to the
+   * control that had it.
+   * @param {number} scrollTop
+   * @param {string|null} focusedId
+   */
+  _restoreScroll(scrollTop, focusedId) {
+    const body = this.panel.querySelector('.si-panel-body');
+    if (body && scrollTop) body.scrollTop = scrollTop;
+
+    if (!focusedId) return;
+    const refocus = this.panel.querySelector(`#${CSS.escape(focusedId)}`);
+    if (refocus && typeof refocus.focus === 'function') refocus.focus({ preventScroll: true });
+  }
+
+  /**
+   * Footer: export settings, then the session-wide actions.
+   * @param {Array<object>} pinnedList
+   * @returns {string}
+   */
+  _renderFooter(pinnedList) {
+    const formatOptions = EXPORT_FORMATS.map(
+      format =>
+        `<option value="${format.id}" ${
+          this.state.exportFormat === format.id ? 'selected' : ''
+        }>${format.label}</option>`
+    ).join('');
+
+    const unitOptions = EXPORT_UNITS.map(
+      unit => `<option value="${unit}" ${this.state.exportUnit === unit ? 'selected' : ''}>${unit}</option>`
+    ).join('');
+
+    const instruction = this.state.customInstruction || '';
+
+    return `
+      <div class="si-panel-footer">
+        <div class="si-export-settings">
+          <label class="si-select-wrap si-export-select">
+            <select id="si-export-format" data-testid="style_inspector_panel_export_format_select"
+                    aria-label="Export format">${formatOptions}</select>
+            ${siIcon('ChevronDown', 12)}
+          </label>
+          <label class="si-select-wrap si-export-select">
+            <select id="si-export-unit" data-testid="style_inspector_panel_export_unit_select"
+                    aria-label="Export unit">${unitOptions}</select>
+            ${siIcon('ChevronDown', 12)}
+          </label>
+          <button class="si-btn-icon ${this.showInstruction ? 'active' : ''}"
+                  id="si-instruction-toggle"
+                  title="${this.showInstruction ? 'Hide' : 'Edit'} the instruction appended to the export">
+            ${siIcon('Zap', 13)}
+          </button>
+        </div>
+
+        ${
+          this.showInstruction
+            ? `<div class="si-field-block">
+                 <textarea class="si-textarea si-instruction-input"
+                           id="si-instruction-input"
+                           data-testid="style_inspector_panel_instruction_input"
+                           rows="3"
+                           placeholder="Leave empty to use the default instruction…">${escapeHtml(instruction)}</textarea>
+               </div>`
+            : ''
+        }
+
+        <div class="si-action-row">
+          <button class="si-btn si-btn-primary" data-testid="style_inspector_panel_export_button" id="si-export-all-btn">
+            Copy to Clipboard
+          </button>
+          <button class="si-btn si-btn-secondary si-btn-square" id="si-download-btn"
+                  data-testid="style_inspector_panel_download_button"
+                  title="Download the export as a file"
+                  aria-label="Download the export as a file">
+            ${siIcon('Download', 15)}
+          </button>
+          <button class="si-btn si-btn-danger si-btn-square" id="si-clear-all-btn"
+                  title="Revert every element and discard the session (${pinnedList.length} pinned)"
+                  aria-label="Revert every element and discard the session">
+            ${siIcon('Trash2', 15)}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Options every export call needs: which format, which unit, and the
+   * instruction override if the user set one.
+   * @returns {{ format: string, unit: string, instruction: string }}
+   */
+  _exportOptions() {
+    return {
+      format: this.state.exportFormat,
+      unit: this.state.exportUnit,
+      instruction: (this.state.customInstruction || '').trim()
+    };
   }
 
   _renderActiveItemBody(item) {
-    const cur = item.current;
-
     return `
       <div class="si-panel-body">
         <div class="si-target-info">
           <span class="si-target-selector" title="${escapeHtml(item.selector)}">${escapeHtml(item.selector)}</span>
-          <button class="si-btn-icon" id="si-copy-selector-btn" title="Copy selector">${siIcon('Copy')}</button>
-        </div>
-
-        <!-- Padding Section -->
-        <div class="si-section">
-          <div class="si-section-header">
-            <span>Padding</span>
-            <label class="si-switch-label">
-              <span>Link all</span>
-              <div class="si-switch ${item.linkPadding ? 'checked' : ''}"
-                   data-testid="style_inspector_panel_link_sides_switch"
-                   data-switch="padding">
-                <div class="si-switch-thumb"></div>
-              </div>
-            </label>
-          </div>
-
-          ${
-            item.linkPadding
-              ? `
-            <div class="si-spacing-box si-spacing-box-linked">
-              <span class="si-spacing-label">Padding</span>
-              <input type="number" class="si-spacing-edge si-spacing-all"
-                     data-testid="style_inspector_panel_padding_input"
-                     data-side="all"
-                     value="${cur.paddingTop}" id="pad-input-all">
-            </div>
-          `
-              : `
-            <div class="si-spacing-box">
-              <span class="si-spacing-label">Padding</span>
-              <input type="number" class="si-spacing-edge si-spacing-top"
-                     data-testid="style_inspector_panel_padding_input"
-                     data-side="top" title="Top"
-                     value="${cur.paddingTop}" id="pad-input-top">
-              <input type="number" class="si-spacing-edge si-spacing-left"
-                     data-testid="style_inspector_panel_padding_input"
-                     data-side="left" title="Left"
-                     value="${cur.paddingLeft}" id="pad-input-left">
-              <div class="si-spacing-center"></div>
-              <input type="number" class="si-spacing-edge si-spacing-right"
-                     data-testid="style_inspector_panel_padding_input"
-                     data-side="right" title="Right"
-                     value="${cur.paddingRight}" id="pad-input-right">
-              <input type="number" class="si-spacing-edge si-spacing-bottom"
-                     data-testid="style_inspector_panel_padding_input"
-                     data-side="bottom" title="Bottom"
-                     value="${cur.paddingBottom}" id="pad-input-bottom">
-            </div>
-          `
-          }
-        </div>
-
-        <!-- Margin Section -->
-        <div class="si-section">
-          <div class="si-section-header">
-            <span>Margin</span>
-            <label class="si-switch-label">
-              <span>Link all</span>
-              <div class="si-switch ${item.linkMargin ? 'checked' : ''}"
-                   data-testid="style_inspector_panel_link_sides_switch"
-                   data-switch="margin">
-                <div class="si-switch-thumb"></div>
-              </div>
-            </label>
-          </div>
-
-          ${
-            item.linkMargin
-              ? `
-            <div class="si-spacing-box si-spacing-box-linked">
-              <span class="si-spacing-label">Margin</span>
-              <input type="number" class="si-spacing-edge si-spacing-all"
-                     data-testid="style_inspector_panel_margin_input"
-                     data-side="all"
-                     value="${cur.marginTop}" id="mar-input-all">
-            </div>
-          `
-              : `
-            <div class="si-spacing-box">
-              <span class="si-spacing-label">Margin</span>
-              <input type="number" class="si-spacing-edge si-spacing-top"
-                     data-testid="style_inspector_panel_margin_input"
-                     data-side="top" title="Top"
-                     value="${cur.marginTop}" id="mar-input-top">
-              <input type="number" class="si-spacing-edge si-spacing-left"
-                     data-testid="style_inspector_panel_margin_input"
-                     data-side="left" title="Left"
-                     value="${cur.marginLeft}" id="mar-input-left">
-              <div class="si-spacing-center"></div>
-              <input type="number" class="si-spacing-edge si-spacing-right"
-                     data-testid="style_inspector_panel_margin_input"
-                     data-side="right" title="Right"
-                     value="${cur.marginRight}" id="mar-input-right">
-              <input type="number" class="si-spacing-edge si-spacing-bottom"
-                     data-testid="style_inspector_panel_margin_input"
-                     data-side="bottom" title="Bottom"
-                     value="${cur.marginBottom}" id="mar-input-bottom">
-            </div>
-          `
-          }
-        </div>
-
-        <!-- Gap Section -->
-        <div class="si-section">
-          <div class="si-section-header">
-            <span>Gap (Flex / Grid)</span>
-          </div>
-          <div class="si-control-row">
-            <span class="si-control-label">Gap</span>
-            <input type="range" class="si-slider" min="0" max="100" value="${cur.gap}" id="gap-slider">
-            <input type="number" class="si-input-number"
-                   data-testid="style_inspector_panel_gap_input"
-                   value="${cur.gap}" id="gap-input">
+          <div class="si-target-actions">
+            <button class="si-btn-icon" id="si-copy-selector-btn"
+                    title="Copy selector" aria-label="Copy selector">${siIcon('Copy')}</button>
+            <button class="si-btn-icon" id="si-copy-item-btn"
+                    data-testid="style_inspector_panel_copy_item_button"
+                    title="Copy this element's changes as markdown"
+                    aria-label="Copy this element's changes as markdown">${siIcon('Clipboard')}</button>
           </div>
         </div>
 
-        <!-- Typography Section -->
-        <div class="si-section si-typography-section">
-          <div class="si-section-header"><span>Typography</span></div>
-          <div class="si-typography-grid">
-            <label class="si-type-control si-type-select">
-              <select data-testid="style_inspector_panel_font_weight_select" id="font-weight-select" aria-label="Font weight">
-                <option value="100" ${`${cur.fontWeight}` === '100' ? 'selected' : ''}>100 - Thin</option>
-                <option value="200" ${`${cur.fontWeight}` === '200' ? 'selected' : ''}>200 - Extra Light</option>
-                <option value="300" ${`${cur.fontWeight}` === '300' ? 'selected' : ''}>300 - Light</option>
-                <option value="400" ${`${cur.fontWeight}` === '400' || !cur.fontWeight ? 'selected' : ''}>400 - Normal</option>
-                <option value="500" ${`${cur.fontWeight}` === '500' ? 'selected' : ''}>500 - Medium</option>
-                <option value="600" ${`${cur.fontWeight}` === '600' ? 'selected' : ''}>600 - Semi Bold</option>
-                <option value="700" ${`${cur.fontWeight}` === '700' ? 'selected' : ''}>700 - Bold</option>
-                <option value="800" ${`${cur.fontWeight}` === '800' ? 'selected' : ''}>800 - Extra Bold</option>
-                <option value="900" ${`${cur.fontWeight}` === '900' ? 'selected' : ''}>900 - Black</option>
-              </select>
-              ${siIcon('ChevronDown', 13)}
-            </label>
-            <label class="si-type-control si-type-value si-type-fontsize">
-              <span class="si-type-glyph">AA</span>
-              <input type="number" data-testid="style_inspector_panel_font_size_input" value="${cur.fontSize}" id="font-size-input" aria-label="Font size">
-              <select id="font-size-preset" aria-label="Font size preset" class="si-fontsize-preset">
-                <option value="">—</option>
-                ${[10, 11, 12, 13, 14, 15, 16, 20, 24, 32, 36, 40, 48, 64, 96, 128].map((s) => `<option value="${s}" ${Number(cur.fontSize) === s ? 'selected' : ''}>${s}</option>`).join('')}
-              </select>
-            </label>
-            <label class="si-type-control si-type-value"><input type="color" class="si-color-swatch" value="${rgbToHex(cur.color, '#ffffff')}" id="color-picker" title="Pick text color"><input type="text" data-testid="style_inspector_panel_color_input" value="${escapeHtml(cur.color)}" id="color-input" aria-label="Text color"></label>
-            <label class="si-type-control si-type-value"><span class="si-type-glyph si-type-underlined">A</span><input type="number" step="0.05" data-testid="style_inspector_panel_line_height_input" value="${cur.lineHeight}" id="line-height-input" aria-label="Line height"><span class="si-type-dash">—</span></label>
-            <div class="si-type-control si-type-align" role="group" aria-label="Text alignment">
-              ${['left', 'center', 'right', 'justify'].map(align => `<button type="button" class="si-type-icon-btn ${cur.textAlign === align || (!cur.textAlign && align === 'left') ? 'active' : ''}" data-align="${align}" title="Align ${align}">${siIcon(`Align${align[0].toUpperCase()}${align.slice(1)}`, 15)}</button>`).join('')}
-            </div>
-            <label class="si-type-control si-type-value"><span class="si-type-glyph">|A|</span><input type="number" step="0.1" value="${cur.letterSpacing}" id="letter-spacing-input" aria-label="Letter spacing"><span>em</span></label>
-            <label class="si-type-control si-type-transform"><span class="si-type-glyph">Aa</span><select data-testid="style_inspector_panel_text_transform_select" id="text-transform-select" aria-label="Text transform"><option value="none" ${cur.textTransform === 'none' || !cur.textTransform ? 'selected' : ''}>Normal</option><option value="uppercase" ${cur.textTransform === 'uppercase' ? 'selected' : ''}>Uppercase</option><option value="lowercase" ${cur.textTransform === 'lowercase' ? 'selected' : ''}>Lowercase</option><option value="capitalize" ${cur.textTransform === 'capitalize' ? 'selected' : ''}>Capitalize</option></select></label>
-          </div>
-        </div>
+        ${alignRail.render(item)}
 
-        <!-- Colors Section -->
-        <div class="si-section">
-          <div class="si-section-header">
-            <span>Colors</span>
-          </div>
-
-          <div class="si-control-row">
-            <span class="si-control-label">Background</span>
-            <div class="si-color-picker-wrap">
-              <input type="color" class="si-color-swatch" value="${rgbToHex(cur.backgroundColor, '#1e293b')}" id="bg-color-picker" title="Pick background color">
-              <input type="text" class="si-input-text"
-                     data-testid="style_inspector_panel_bg_color_input"
-                     value="${escapeHtml(cur.backgroundColor)}" id="bg-color-input" placeholder="transparent or #ffffff">
-            </div>
-          </div>
-        </div>
+        ${SECTIONS.map((section) => section.render(item)).join('')}
 
         <!-- Context & Notes Field -->
-        <div class="si-section">
-          <div class="si-section-header">
-            <span>Element Notes (Optional)</span>
-          </div>
-          <textarea class="si-textarea" id="si-notes-input"
-                    placeholder="e.g. Instance of repeated card, desktop breakpoint only...">${escapeHtml(item.notes || '')}</textarea>
-        </div>
+        ${section({
+          title: 'Notes',
+          body: `<textarea class="si-textarea" id="si-notes-input"
+                    placeholder="e.g. Instance of repeated card, desktop breakpoint only...">${escapeHtml(
+                      item.notes || ''
+                    )}</textarea>`
+        })}
 
         <!-- Element-Level Actions -->
         <div class="si-action-row">
-          <button class="si-btn si-btn-danger" data-testid="style_inspector_panel_reset_button" id="si-reset-item-btn">
-            Reset
-          </button>
-          <button class="si-btn si-btn-secondary" data-testid="style_inspector_panel_copy_item_button" id="si-copy-item-btn">
-            Copy Item MD
+          <button class="si-btn si-btn-secondary" data-testid="style_inspector_panel_reset_button" id="si-reset-item-btn"
+                  title="Revert this element to the styles it had when it was pinned">
+            Reset this element
           </button>
         </div>
       </div>
@@ -350,6 +323,8 @@ export class InspectorPanel {
   }
 
   _attachEventListeners(activeItem) {
+    this._applyCollapsedState();
+
     // Header controls
     const minBtn = this.panel.querySelector('#si-minimize-btn');
     if (minBtn) {
@@ -370,7 +345,8 @@ export class InspectorPanel {
     // Pinned pills click / remove
     this.panel.querySelectorAll('.si-pinned-pill').forEach(pill => {
       pill.onclick = (e) => {
-        const removeId = e.target.getAttribute('data-remove');
+        const removeTarget = e.target.closest('[data-remove]');
+        const removeId = removeTarget ? removeTarget.getAttribute('data-remove') : null;
         if (removeId) {
           e.stopPropagation();
           this.state.unpinElement(removeId);
@@ -381,26 +357,68 @@ export class InspectorPanel {
       };
     });
 
-    // Reset All & Export All
-    const resetAllBtn = this.panel.querySelector('#si-reset-all-btn');
-    if (resetAllBtn) {
-      resetAllBtn.onclick = () => {
-        if (confirm('Reset all pinned elements back to their initial baseline?')) {
-          this.state.resetAll();
-          this.showToast('All elements reset to baseline.');
+    // Clear Pins reverts every element and discards the session. There is no
+    // "Reset All" button any more: it was a strict subset of this — the same
+    // revert without the unpin — and the per-element Reset covers undoing one
+    // element. `inspector.resetAll()` still exists for scripted use.
+    const clearAllBtn = this.panel.querySelector('#si-clear-all-btn');
+    if (clearAllBtn) {
+      clearAllBtn.onclick = () => {
+        if (confirm('Reset all elements and discard the whole session?')) {
+          this.state.clearAll();
         }
+      };
+    }
+
+    // Export settings
+    const formatSelect = this.panel.querySelector('#si-export-format');
+    if (formatSelect) {
+      formatSelect.onchange = (e) => this.state.setExportFormat(e.target.value);
+    }
+
+    const unitSelect = this.panel.querySelector('#si-export-unit');
+    if (unitSelect) {
+      unitSelect.onchange = (e) => this.state.setExportUnit(e.target.value);
+    }
+
+    const instructionToggle = this.panel.querySelector('#si-instruction-toggle');
+    if (instructionToggle) {
+      instructionToggle.onclick = () => {
+        this.showInstruction = !this.showInstruction;
+        this.render();
+      };
+    }
+
+    const instructionInput = this.panel.querySelector('#si-instruction-input');
+    if (instructionInput) {
+      instructionInput.oninput = (e) => {
+        // Assign directly rather than through the setter: emitting stateUpdated
+        // on every keystroke would re-render the panel under the cursor.
+        this.state.customInstruction = e.target.value;
       };
     }
 
     const exportAllBtn = this.panel.querySelector('#si-export-all-btn');
     if (exportAllBtn) {
       exportAllBtn.onclick = async () => {
-        const markdown = generateMarkdownExport(this.state.getPinnedList());
-        const ok = await copyToClipboard(markdown);
+        const options = this._exportOptions();
+        const text = generateExport(this.state.getPinnedList(), options);
+        const ok = await copyToClipboard(text);
         if (ok) {
-          this.showToast('Export copied to clipboard!');
+          this.showToast(`${options.format.toUpperCase()} export copied to clipboard!`);
         } else {
           alert('Failed to copy to clipboard. Please allow clipboard permissions.');
+        }
+      };
+    }
+
+    const downloadBtn = this.panel.querySelector('#si-download-btn');
+    if (downloadBtn) {
+      downloadBtn.onclick = () => {
+        const options = this._exportOptions();
+        const text = generateExport(this.state.getPinnedList(), options);
+        if (downloadExport(text, options.format)) {
+          this.showToast('Export downloaded.');
         }
       };
     }
@@ -416,15 +434,13 @@ export class InspectorPanel {
       };
     }
 
-    // Switch link sides
+    // "Link all sides" switches, for every four-sided group.
     this.panel.querySelectorAll('[data-switch]').forEach(el => {
       el.onclick = () => {
-        const target = el.getAttribute('data-switch');
-        if (target === 'padding') {
-          this.state.setLinkPadding(activeItem.id, !activeItem.linkPadding);
-        } else if (target === 'margin') {
-          this.state.setLinkMargin(activeItem.id, !activeItem.linkMargin);
-        }
+        const group = el.getAttribute('data-switch');
+        const flag = SHORTHAND_GROUPS.find(candidate => candidate.name === group);
+        if (!flag) return;
+        this.state.setLinked(activeItem.id, group, !activeItem[flag.linkFlag]);
       };
     });
 
@@ -440,7 +456,7 @@ export class InspectorPanel {
     const copyItemBtn = this.panel.querySelector('#si-copy-item-btn');
     if (copyItemBtn) {
       copyItemBtn.onclick = async () => {
-        const markdown = generateSingleItemExport(activeItem);
+        const markdown = generateSingleItemExport(activeItem, this._exportOptions());
         const ok = await copyToClipboard(markdown);
         if (ok) {
           this.showToast('Item markdown copied to clipboard!');
@@ -456,105 +472,47 @@ export class InspectorPanel {
       };
     }
 
-    // Slider / Input sync helpers
-    const bindSync = (sliderId, inputId, prop) => {
-      const slider = this.panel.querySelector(sliderId);
-      const input = this.panel.querySelector(inputId);
-      if (!input) return;
-
-      if (slider) {
-        slider.oninput = (e) => {
-          input.value = e.target.value;
-          this.state.updateStyle(activeItem.id, prop, parseFloat(e.target.value));
-        };
-      }
-
-      input.oninput = (e) => {
-        if (slider) slider.value = e.target.value;
-        this.state.updateStyle(activeItem.id, prop, parseFloat(e.target.value));
-      };
+    // Each section wires its own controls.
+    const context = {
+      panel: this.panel,
+      state: this.state,
+      item: activeItem,
+      showToast: (message) => this.showToast(message)
     };
+    alignRail.bind(context);
 
-    if (activeItem.linkPadding) {
-      bindSync('#pad-slider-all', '#pad-input-all', 'paddingAll');
-    } else {
-      bindSync(null, '#pad-input-top', 'paddingTop');
-      bindSync(null, '#pad-input-right', 'paddingRight');
-      bindSync(null, '#pad-input-bottom', 'paddingBottom');
-      bindSync(null, '#pad-input-left', 'paddingLeft');
+    for (const section of SECTIONS) {
+      section.bind(context);
     }
+  }
 
-    if (activeItem.linkMargin) {
-      bindSync('#mar-slider-all', '#mar-input-all', 'marginAll');
-    } else {
-      bindSync(null, '#mar-input-top', 'marginTop');
-      bindSync(null, '#mar-input-right', 'marginRight');
-      bindSync(null, '#mar-input-bottom', 'marginBottom');
-      bindSync(null, '#mar-input-left', 'marginLeft');
-    }
-
-    bindSync('#gap-slider', '#gap-input', 'gap');
-    bindSync(null, '#font-size-input', 'fontSize');
-
-    const fontSizePreset = this.panel.querySelector('#font-size-preset');
-    if (fontSizePreset) {
-      fontSizePreset.onchange = (event) => {
-        if (!event.target.value) return;
-        const fontSizeInput = this.panel.querySelector('#font-size-input');
-        if (fontSizeInput) fontSizeInput.value = event.target.value;
-        this.state.updateStyle(activeItem.id, 'fontSize', parseFloat(event.target.value));
-      };
-    }
-
-    bindSync(null, '#line-height-input', 'lineHeight');
-    bindSync(null, '#letter-spacing-input', 'letterSpacing');
-
-    this.panel.querySelectorAll('[data-align]').forEach(button => {
-      button.onclick = () => {
-        const align = button.getAttribute('data-align');
-        this.panel.querySelectorAll('[data-align]').forEach(item => item.classList.toggle('active', item === button));
-        this.state.updateStyle(activeItem.id, 'textAlign', align);
-      };
+  /**
+   * Reflects the collapse set onto the freshly rendered sections and wires the
+   * toggles. The handlers mutate classes directly instead of re-rendering: a
+   * rebuild would reset the body's scroll position, which is exactly what a
+   * user folding a section away is trying to avoid.
+   */
+  _applyCollapsedState() {
+    this.panel.querySelectorAll('.si-section[data-section]').forEach(el => {
+      el.classList.toggle('collapsed', this.collapsed.has(el.getAttribute('data-section')));
     });
 
-    const weightSelect = this.panel.querySelector('#font-weight-select');
-    if (weightSelect) {
-      weightSelect.onchange = (e) => {
-        this.state.updateStyle(activeItem.id, 'fontWeight', e.target.value);
-      };
-    }
+    this.panel.querySelectorAll('[data-toggle]').forEach(button => {
+      button.onclick = event => {
+        event.stopPropagation();
+        const key = button.getAttribute('data-toggle');
+        const isCollapsed = !this.collapsed.has(key);
 
-    const transformSelect = this.panel.querySelector('#text-transform-select');
-    if (transformSelect) {
-      transformSelect.onchange = (e) => {
-        this.state.updateStyle(activeItem.id, 'textTransform', e.target.value);
-      };
-    }
-
-    // Color controls
-    const bindColor = (pickerId, inputId, prop) => {
-      const picker = this.panel.querySelector(pickerId);
-      const input = this.panel.querySelector(inputId);
-      if (!input) return;
-
-      if (picker) {
-        picker.oninput = (e) => {
-          input.value = e.target.value;
-          this.state.updateStyle(activeItem.id, prop, e.target.value);
-        };
-      }
-
-      input.oninput = (e) => {
-        const val = e.target.value.trim();
-        if (picker && val.startsWith('#') && (val.length === 7 || val.length === 4)) {
-          picker.value = rgbToHex(val, picker.value);
+        if (isCollapsed) {
+          this.collapsed.add(key);
+        } else {
+          this.collapsed.delete(key);
         }
-        this.state.updateStyle(activeItem.id, prop, val);
-      };
-    };
 
-    bindColor('#color-picker', '#color-input', 'color');
-    bindColor('#bg-color-picker', '#bg-color-input', 'backgroundColor');
+        const target = this.panel.querySelector(`.si-section[data-section="${key}"]`);
+        if (target) target.classList.toggle('collapsed', isCollapsed);
+      };
+    });
   }
 
   _initDraggable() {
