@@ -9,7 +9,8 @@
     "test:unit": "node --test test/**/*.test.js",
     "test:e2e": "node test/browser-e2e.js",
     "build": "node build.js",
-    "start": "node serve.js"
+    "start": "node serve.js",
+    "build:site": "node build.js && node build-site.js"
   },
   "keywords": [
     "css",
