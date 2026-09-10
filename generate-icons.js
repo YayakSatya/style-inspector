@@ -6,9 +6,9 @@ import zlib from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
 
-function createPng(size, r = 99, g = 102, b = 241) {
+function createPng(size, r = 0, g = 153, b = 255) {
   // Signature
-  const signature = Buffer.from([137, 80, 78, 74, 13, 10, 26, 10]);
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
   // IHDR chunk
   const ihdrData = Buffer.alloc(13);
@@ -27,11 +27,12 @@ function createPng(size, r = 99, g = 102, b = 241) {
   for (let y = 0; y < size; y++) {
     rawData.writeUInt8(0, offset++); // Filter byte: 0 (None)
     for (let x = 0; x < size; x++) {
-      // Rounded icon shape
-      const dx = x - size / 2;
-      const dy = y - size / 2;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const isInside = dist <= (size / 2 - 1);
+      // Rounded square: distance to the nearest corner circle centre.
+      const radius = size * 0.22;
+      const half = size / 2 - 0.5;
+      const dx = Math.max(Math.abs(x - half) - (half - radius), 0);
+      const dy = Math.max(Math.abs(y - half) - (half - radius), 0);
+      const isInside = Math.sqrt(dx * dx + dy * dy) <= radius;
 
       if (isInside) {
         rawData.writeUInt8(r, offset++);
@@ -89,7 +90,7 @@ function crc32(buf) {
 export function generateIcons(dir) {
   const sizes = [16, 48, 128];
   for (const s of sizes) {
-    const png = createPng(s, 99, 102, 241);
+    const png = createPng(s, 0, 153, 255);
     fs.writeFileSync(path.join(dir, `icon${s}.png`), png);
   }
 }

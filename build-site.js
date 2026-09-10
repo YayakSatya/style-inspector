@@ -108,6 +108,10 @@ const extensionFiles = fs
 const zipName = `style-inspector-extension-v${version}.zip`;
 fs.writeFileSync(path.join(publicDir, zipName), createZip(extensionFiles));
 
+// Inline the extension icon so the landing page needs no extra asset request.
+const logoDataUri =
+  'data:image/png;base64,' + fs.readFileSync(path.join('extension', 'icon128.png')).toString('base64');
+
 const landing = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -115,90 +119,215 @@ const landing = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Style Inspector — Visual CSS Adjustment Tool</title>
   <meta name="description" content="Inspect and adjust CSS on any website, then export the changes.">
+  <link rel="icon" href="${logoDataUri}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root { color-scheme: dark; }
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0a;
+      --surface: #121212;
+      --surface-2: #171717;
+      --fill: #242424;
+      --line: #232323;
+      --text: #ededed;
+      --dim: #8f8f8f;
+      --mute: #6b6b6b;
+      --accent: #0099ff;
+    }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f172a; color: #e2e8f0; margin: 0;
-      display: flex; justify-content: center; padding: 48px 20px;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
     }
-    main { width: 100%; max-width: 720px; }
-    h1 { font-size: 32px; color: #f8fafc; margin: 0 0 8px; }
-    .lede { color: #94a3b8; font-size: 15px; line-height: 1.6; margin: 0 0 32px; }
+    /* Ambient Framer-style glow + hairline grid. */
+    body::before {
+      content: ""; position: fixed; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(58% 45% at 50% -5%, rgba(0, 153, 255, .18), transparent 70%),
+        linear-gradient(to right, rgba(255,255,255,.022) 1px, transparent 1px) 0 0 / 72px 72px,
+        linear-gradient(to bottom, rgba(255,255,255,.022) 1px, transparent 1px) 0 0 / 72px 72px;
+      mask-image: radial-gradient(80% 70% at 50% 18%, #000, transparent 85%);
+    }
+    .wrap {
+      position: relative; z-index: 1;
+      height: 100%; max-width: 1180px; margin: 0 auto;
+      padding: clamp(20px, 4vh, 48px) 32px clamp(24px, 5vh, 56px);
+      display: flex; flex-direction: column; justify-content: center;
+      gap: clamp(24px, 5vh, 56px);
+    }
+
+    /* --- hero --- */
+    .hero { text-align: center; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--dim); background: var(--surface);
+      border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px 5px 9px;
+    }
+    .pill .mark { width: 16px; height: 16px; display: block; }
+    h1 {
+      font-size: clamp(32px, 4.4vw, 56px); line-height: 1.04; letter-spacing: -.045em;
+      font-weight: 600; margin: clamp(14px, 2.6vh, 26px) 0 0;
+      background: linear-gradient(180deg, #fff 32%, #9a9a9a);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .lede {
+      color: var(--dim); font-size: clamp(14px, 1.15vw, 16px); line-height: 1.6;
+      margin: 14px auto 0; max-width: 56ch;
+    }
+    .meta { color: var(--mute); font-size: 12px; margin: clamp(12px, 2vh, 18px) 0 0; }
+    .meta kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+      background: var(--fill); border-radius: 4px; padding: 2px 5px; color: var(--dim);
+    }
+
+    /* --- install cards: the page's centre of gravity --- */
+    .cards { display: flex; gap: 18px; align-items: stretch; }
     .card {
-      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
-      padding: 24px; margin-bottom: 16px;
+      flex: 1; position: relative; overflow: hidden;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+      padding: clamp(18px, 3vh, 28px);
+      display: flex; flex-direction: column; gap: 12px;
+      transition: border-color .16s, background .16s, transform .16s;
     }
-    h2 { font-size: 16px; color: #f8fafc; margin: 0 0 4px; }
+    .card:hover { border-color: #303030; background: var(--surface-2); transform: translateY(-2px); }
+    .card.featured { border-color: rgba(0, 153, 255, .35); }
+    .card.featured::before {
+      content: ""; position: absolute; inset: -40% 20% auto; height: 120px;
+      background: radial-gradient(50% 100% at 50% 0, rgba(0,153,255,.28), transparent 70%);
+      pointer-events: none;
+    }
+    .num {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px; color: var(--mute);
+    }
+    .card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .card h2 { font-size: clamp(16px, 1.5vw, 19px); font-weight: 600; margin: 0; letter-spacing: -.02em; }
     .tag {
-      display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em;
-      text-transform: uppercase; color: #a5b4fc; background: #312e81;
-      padding: 3px 8px; border-radius: 999px; margin-bottom: 10px;
+      font-size: 10px; color: var(--dim); border: 1px solid var(--line);
+      border-radius: 999px; padding: 3px 9px; white-space: nowrap;
     }
-    p { color: #94a3b8; font-size: 14px; line-height: 1.7; margin: 0 0 16px; }
-    ol { color: #cbd5e1; font-size: 13px; line-height: 1.9; padding-left: 20px; margin: 0; }
-    a.btn {
-      display: inline-block; background: #6366f1; color: #fff; text-decoration: none;
-      font-weight: 700; font-size: 14px; padding: 10px 20px; border-radius: 8px;
+    .card.featured .tag { color: var(--accent); border-color: rgba(0,153,255,.35); }
+    .card p { color: var(--dim); font-size: 13px; line-height: 1.6; margin: 0; }
+    .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+    .steps li {
+      display: flex; gap: 9px; align-items: baseline;
+      font-size: 12.5px; color: var(--dim); line-height: 1.5;
     }
-    a.btn:hover { background: #4f46e5; }
-    a.btn.drag { cursor: move; }
-    a.ghost { color: #a5b4fc; }
+    .steps li::before {
+      content: counter(step); counter-increment: step;
+      flex: none; width: 17px; height: 17px; border-radius: 5px;
+      background: var(--fill); color: var(--mute);
+      font-size: 10px; line-height: 17px; text-align: center;
+    }
+    .steps { counter-reset: step; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      height: 40px; padding: 0 18px; border-radius: 10px;
+      font-size: 13.5px; font-weight: 500; text-decoration: none;
+      border: 1px solid transparent; margin-top: auto;
+      transition: background .15s, border-color .15s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #33adff; }
+    .btn-ghost { background: var(--fill); border-color: var(--line); color: var(--text); }
+    .btn-ghost:hover { background: #2c2c2c; }
+    .btn.drag { cursor: grab; }
+    .alt { font-size: 11px; color: var(--mute); text-align: center; margin: 0; }
+    .alt a { color: var(--mute); }
     code, pre {
-      background: #0f172a; color: #a5b4fc; border-radius: 6px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;
+      color: #7fc7ff; background: #0d0d0d; border-radius: 8px;
     }
-    code { padding: 2px 6px; }
-    pre { padding: 12px; overflow-x: auto; border: 1px solid #334155; }
-    footer { color: #64748b; font-size: 12px; margin-top: 32px; line-height: 1.8; }
+    pre {
+      padding: 11px 12px; margin: 0; border: 1px solid var(--line);
+      white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+    }
+    .keys { white-space: nowrap; }
+    .steps kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px;
+      background: var(--fill); border-radius: 4px; padding: 1px 4px; color: var(--dim);
+    }
+
+    @media (max-width: 900px) {
+      html, body { height: auto; }
+      body { overflow: auto; }
+      .wrap { height: auto; padding: 40px 20px; }
+      .cards { flex-direction: column; }
+    }
   </style>
 </head>
 <body>
-  <main>
-    <h1>🎨 Style Inspector</h1>
-    <p class="lede">Point at any element on any website, adjust its styles visually, and export the resulting CSS. Version ${version}.</p>
+  <div class="wrap">
+    <section class="hero">
+      <span class="pill">
+        <svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="9" fill="#0099ff"/>
+          <path d="M13 12.4l7.6 3.4-3.1 1.2-1.2 3.1-3.3-7.7z" fill="#fff"/>
+        </svg>
+        Style Inspector · v${version}
+      </span>
+      <h1>Adjust CSS where you see it.</h1>
+      <p class="lede">Point at any element on any page, tune its styles with a real panel, and export exactly the CSS you changed. Pick how you want to install it.</p>
+      <p class="meta">Toggle with <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> · <kbd>Esc</kbd> stops inspecting · MIT licensed</p>
+    </section>
 
-    <div class="card">
-      <span class="tag">Works everywhere</span>
-      <h2>Chrome extension</h2>
-      <p>The reliable option: it runs on every site, including ones whose Content Security Policy blocks bookmarklets.</p>
-      <a class="btn" href="/${zipName}" download>Download .zip</a>
-      <ol style="margin-top:20px">
-        <li>Unzip the download.</li>
-        <li>Open <code>chrome://extensions</code> and turn on <strong>Developer mode</strong>.</li>
-        <li>Click <strong>Load unpacked</strong> and pick the unzipped folder.</li>
-        <li>Click the toolbar icon, or press <code>Alt+Shift+S</code>, on any page.</li>
-      </ol>
-    </div>
+    <section class="cards">
+      <div class="card featured">
+        <div class="card-top"><span class="num">01</span><span class="tag">Recommended</span></div>
+        <h2>Chrome extension</h2>
+        <p>Runs on every site, including ones whose Content Security Policy blocks bookmarklets.</p>
+        <ol class="steps">
+          <li>Unzip the download</li>
+          <li>Open <code>chrome://extensions</code></li>
+          <li>Turn on Developer mode</li>
+          <li>Load unpacked, pick the folder</li>
+        </ol>
+        <a class="btn btn-primary" href="/${zipName}" download>Download .zip</a>
+      </div>
 
-    <div class="card">
-      <span class="tag">No install</span>
-      <h2>Bookmarklet</h2>
-      <p>Drag this button to your bookmarks bar, then click it on a page. The whole tool is inlined in the bookmark, so it needs no network and works on <code>localhost</code>. Strict-CSP sites will refuse to run it — use the extension there.</p>
-      <a class="btn drag" href="${bookmarkletCode}">🎨 Style Inspector</a>
-      <p style="margin-top:16px">Longer instructions: <a class="ghost" href="/dist/bookmarklet.html">installer page</a>.</p>
-    </div>
+      <div class="card">
+        <div class="card-top"><span class="num">02</span><span class="tag">No install</span></div>
+        <h2>Bookmarklet</h2>
+        <p>The whole tool is inlined in the bookmark — no network, works on <code>localhost</code>. Strict-CSP sites need the extension.</p>
+        <ol class="steps">
+          <li><span>Show your bookmarks bar <span class="keys"><kbd id="bb-mod">Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd></span></span></li>
+          <li>Drag the button below onto it</li>
+          <li>Click it on any page</li>
+        </ol>
+        <a class="btn btn-ghost drag" href="${bookmarkletCode}">Drag me to bookmarks</a>
+      </div>
 
-    <div class="card">
-      <span class="tag">Your own pages</span>
-      <h2>Script tag</h2>
-      <pre id="snippet">&lt;script src="/dist/style-inspector.js"&gt;&lt;/script&gt;</pre>
-      <p>Press <code>Alt+Shift+S</code> to toggle, <code>Esc</code> to stop inspecting.</p>
-    </div>
-
-    <footer>
-      MIT licensed.
-      <a class="ghost" href="/dist/style-inspector.js">Bundle</a> ·
-      <a class="ghost" href="/dist/style-inspector.min.js">Minified</a>
-    </footer>
-  </main>
+      <div class="card">
+        <div class="card-top"><span class="num">03</span><span class="tag">Your own pages</span></div>
+        <h2>Script tag</h2>
+        <p>Drop the bundle into a page you control and toggle it with the shortcut.</p>
+        <ol class="steps">
+          <li>Add the tag to your page</li>
+          <li>Press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></li>
+          <li>Copy the CSS back out</li>
+        </ol>
+        <pre id="snippet">&lt;script src="/dist/style-inspector.js"&gt;&lt;/script&gt;</pre>
+        <a class="btn btn-ghost" href="/dist/style-inspector.js" download>Download bundle</a>
+        <p class="alt"><a href="/dist/style-inspector.min.js">Minified build</a></p>
+      </div>
+    </section>
+  </div>
   <script>
+    // The bookmarks-bar shortcut is Cmd-based on macOS, Ctrl-based elsewhere.
+    if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
+      document.getElementById('bb-mod').textContent = 'Cmd';
+    }
     document.getElementById('snippet').textContent =
       '<script src="' + location.origin + '/dist/style-inspector.js"><\\/script>';
   </script>
 </body>
 </html>`;
-
 fs.writeFileSync(path.join(publicDir, 'index.html'), landing);
 console.log(`✅ Created public/ (index.html, dist/, ${zipName})`);
