@@ -275,7 +275,7 @@ const landing = `<!DOCTYPE html>
       </span>
       <h1>Adjust CSS where you see it.</h1>
       <p class="lede">Point at any element on any page, tune its styles with a real panel, and export exactly the CSS you changed. Pick how you want to install it.</p>
-      <p class="meta">Toggle with <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> · <kbd>Esc</kbd> stops inspecting · MIT licensed</p>
+      <p class="meta">Toggle with <kbd class="alt-key">Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> · <kbd>Esc</kbd> stops inspecting · MIT licensed</p>
     </section>
 
     <section class="cards">
@@ -310,7 +310,7 @@ const landing = `<!DOCTYPE html>
         <p>Drop the bundle into a page you control and toggle it with the shortcut.</p>
         <ol class="steps">
           <li>Add the tag to your page</li>
-          <li>Press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></li>
+          <li>Press <span class="keys"><kbd class="alt-key">Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></span></li>
           <li>Copy the CSS back out</li>
         </ol>
         <pre id="snippet">&lt;script src="/dist/style-inspector.js"&gt;&lt;/script&gt;</pre>
@@ -320,9 +320,11 @@ const landing = `<!DOCTYPE html>
     </section>
   </div>
   <script>
-    // The bookmarks-bar shortcut is Cmd-based on macOS, Ctrl-based elsewhere.
+    // Same physical keys on every platform, but macOS names them differently:
+    // Cmd instead of Ctrl for the bookmarks bar, Option instead of Alt to toggle.
     if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
       document.getElementById('bb-mod').textContent = 'Cmd';
+      for (const el of document.querySelectorAll('.alt-key')) el.textContent = 'Option';
     }
     document.getElementById('snippet').textContent =
       '<script src="' + location.origin + '/dist/style-inspector.js"><\\/script>';
