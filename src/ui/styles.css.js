@@ -47,17 +47,18 @@ export const inspectorStyles = `
   /*
    * Overlay hues stay the familiar DevTools ones — cyan for the hovered box,
    * amber for a pinned one, orange/green for the margin and padding bands — so
-   * they read the same way as the browser's own inspector.
+   * they read the same way as the browser's own inspector. Boxes are outline
+   * only (no soft fill): a tint over the element would falsify the very colors
+   * the user is tuning.
    */
   --si-hover: #06b6d4;
-  --si-hover-soft: rgba(6, 182, 212, 0.16);
   --si-hover-tag: #0891b2;
   --si-pin: #f59e0b;
-  --si-pin-soft: rgba(245, 158, 11, 0.1);
   --si-pin-tag: #d97706;
   --si-margin-band: rgba(246, 178, 107, 0.45);
   --si-padding-band: rgba(147, 196, 125, 0.45);
   --si-overlay-text: #ffffff;
+  --si-outline-w: 2px;
 
   --si-neutral: #ffffff;
   --si-neutral-hover: #d4d4d4;
@@ -211,17 +212,23 @@ export const inspectorStyles = `
   height: 100vh;
   pointer-events: none !important;
   z-index: 2147483640;
+  transition: opacity 0.1s ease-out;
 }
 
 /*
  * Overlay boxes trace the real geometry of a host element, so they keep square
  * corners on purpose: a rounded outline would misreport where the box ends.
+ *
+ * They carry no fill and their border is drawn *outside* the element's border
+ * box (the JS side inflates the rect by --si-outline-w), so not a single pixel
+ * of the element is tinted or covered — the result of a tweak stays visible
+ * exactly as the page renders it.
  */
 .si-hover-box {
   position: fixed !important;
   box-sizing: border-box !important;
-  border: 2px solid var(--si-hover);
-  background: var(--si-hover-soft);
+  border: var(--si-outline-w) solid var(--si-hover);
+  background: transparent;
   border-radius: 0;
   transition: all 0.05s ease-out;
   pointer-events: none !important;
@@ -272,11 +279,27 @@ export const inspectorStyles = `
 .si-pinned-box {
   position: fixed !important;
   box-sizing: border-box !important;
-  border: 2px dashed var(--si-pin);
-  background: var(--si-pin-soft);
+  border: var(--si-outline-w) dashed var(--si-pin);
+  background: transparent;
   border-radius: 0;
   pointer-events: none !important;
   z-index: 2147483640;
+  transition: opacity 0.12s ease-out;
+}
+
+/*
+ * While the user is editing a pinned element — a panel field has focus, a
+ * scrub handle is being dragged, or a value just changed — its outline fades
+ * out so the tweak can be judged against the untouched page. Other pins stay
+ * visible, so context is not lost.
+ */
+.si-pinned-box.si-quiet {
+  opacity: 0;
+}
+
+/* Hold H to peek at the page with every overlay hidden. */
+.si-overlay-container.si-peek {
+  opacity: 0;
 }
 
 .si-pinned-tag {

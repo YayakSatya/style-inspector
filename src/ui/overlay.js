@@ -6,6 +6,32 @@ import { getElementLabel, escapeHtml } from '../core/selector.js';
 import { parsePx } from '../core/css-value.js';
 import { siIcon } from './icons.js';
 
+/**
+ * Width of the hover / pinned outline, mirroring --si-outline-w in the
+ * stylesheet. Boxes are inflated by this much so the border sits entirely
+ * outside the element and never covers its edge.
+ */
+const OUTLINE_WIDTH = 2;
+
+/**
+ * How long the active pin's outline stays hidden after a value change made by
+ * a control that does not hold focus (a segmented button, the align rail).
+ */
+const QUIET_AFTER_CHANGE_MS = 900;
+
+/**
+ * Positions a fixed overlay box so its border wraps the given rect from the
+ * outside.
+ * @param {HTMLElement} box
+ * @param {DOMRect} rect
+ */
+function placeOutlineBox(box, rect) {
+  box.style.top = `${rect.top - OUTLINE_WIDTH}px`;
+  box.style.left = `${rect.left - OUTLINE_WIDTH}px`;
+  box.style.width = `${rect.width + OUTLINE_WIDTH * 2}px`;
+  box.style.height = `${rect.height + OUTLINE_WIDTH * 2}px`;
+}
+
 export class InspectorOverlay {
   /**
    * @param {ShadowRoot} shadowRoot
@@ -47,6 +73,13 @@ export class InspectorOverlay {
     // Map of pinned elements to their overlay boxes
     this.pinnedBoxes = new Map(); // id -> HTMLElement
 
+    // Why the active pin's outline is currently hidden, if it is. Focus in a
+    // panel field and a recent value change are tracked separately so that
+    // blurring a field does not cut short the post-change grace period.
+    this._quietByFocus = false;
+    this._quietTimer = null;
+    this._peeking = false;
+
     this._bindEvents();
   }
 
@@ -63,6 +96,101 @@ export class InspectorOverlay {
     this._onViewportChange = () => this.refresh();
     window.addEventListener('scroll', this._onViewportChange, { passive: true });
     window.addEventListener('resize', this._onViewportChange, { passive: true });
+
+    // Fade the active pin's outline while a panel field is being edited.
+    // focusin/focusout bubble, so one pair of listeners on the shadow root
+    // covers every control the panel builds, including future ones.
+    this._onFocusIn = (e) => this._setQuietByFocus(this._isPanelField(e.target));
+    this._onFocusOut = () => this._setQuietByFocus(false);
+    this.shadowRoot.addEventListener('focusin', this._onFocusIn);
+    this.shadowRoot.addEventListener('focusout', this._onFocusOut);
+
+    // Controls that apply a style without keeping focus still deserve a clear
+    // look at the result, so any change buys a short quiet period.
+    this.state.on('styleChanged', () => this._quietAfterChange());
+
+    // Hold H to hide every overlay and see the bare page. Released on keyup,
+    // and defensively on window blur so a missed keyup cannot leave the
+    // overlays hidden.
+    this._onKeyDown = (e) => {
+      if (e.repeat || !this._isPeekKey(e) || this._isTypingAnywhere()) return;
+      this.setPeek(true);
+    };
+    this._onKeyUp = (e) => {
+      if (this._isPeekKey(e)) this.setPeek(false);
+    };
+    this._onWindowBlur = () => this.setPeek(false);
+    window.addEventListener('keydown', this._onKeyDown, true);
+    window.addEventListener('keyup', this._onKeyUp, true);
+    window.addEventListener('blur', this._onWindowBlur);
+  }
+
+  /**
+   * True for a control inside the adjustment panel whose focus means the user
+   * is editing a value.
+   * @param {EventTarget|null} target
+   */
+  _isPanelField(target) {
+    if (!(target instanceof Element)) return false;
+    if (!target.closest('.si-panel')) return false;
+    const tag = target.tagName;
+    return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+  }
+
+  /**
+   * True when a keystroke would land in a text field, on the host page or
+   * inside the inspector, so a bare letter must not act as a shortcut.
+   */
+  _isTypingAnywhere() {
+    const check = (el) => {
+      if (!el) return false;
+      if (el.isContentEditable) return true;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    };
+    return check(document.activeElement) || check(this.shadowRoot.activeElement);
+  }
+
+  _isPeekKey(e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return false;
+    return e.code === 'KeyH' || e.key === 'h' || e.key === 'H';
+  }
+
+  /**
+   * Hides or shows every overlay at once.
+   * @param {boolean} on
+   */
+  setPeek(on) {
+    if (this._peeking === on) return;
+    this._peeking = on;
+    this.container.classList.toggle('si-peek', on);
+  }
+
+  _setQuietByFocus(on) {
+    if (this._quietByFocus === on) return;
+    this._quietByFocus = on;
+    this._applyQuiet();
+  }
+
+  _quietAfterChange() {
+    if (this._quietTimer) clearTimeout(this._quietTimer);
+    this._quietTimer = setTimeout(() => {
+      this._quietTimer = null;
+      this._applyQuiet();
+    }, QUIET_AFTER_CHANGE_MS);
+    this._applyQuiet();
+  }
+
+  /**
+   * Applies the quiet class to the active pin's box only; every other pinned
+   * outline keeps showing.
+   */
+  _applyQuiet() {
+    const quiet = this._quietByFocus || this._quietTimer !== null;
+    const activeId = this.state.activePinnedId;
+    for (const [id, box] of this.pinnedBoxes.entries()) {
+      box.classList.toggle('si-quiet', quiet && id === activeId);
+    }
   }
 
   /**
@@ -154,10 +282,7 @@ export class InspectorOverlay {
     this._updateBands(element, rect);
 
     this.hoverBox.style.display = 'block';
-    this.hoverBox.style.top = `${rect.top}px`;
-    this.hoverBox.style.left = `${rect.left}px`;
-    this.hoverBox.style.width = `${rect.width}px`;
-    this.hoverBox.style.height = `${rect.height}px`;
+    placeOutlineBox(this.hoverBox, rect);
 
     const label = getElementLabel(element);
     this.hoverTag.textContent = label;
@@ -194,10 +319,7 @@ export class InspectorOverlay {
 
       const rect = item.element.getBoundingClientRect();
       box.style.display = 'block';
-      box.style.top = `${rect.top}px`;
-      box.style.left = `${rect.left}px`;
-      box.style.width = `${rect.width}px`;
-      box.style.height = `${rect.height}px`;
+      placeOutlineBox(box, rect);
     }
 
     // Remove any boxes that were unpinned
@@ -207,6 +329,9 @@ export class InspectorOverlay {
         this.pinnedBoxes.delete(id);
       }
     }
+
+    // The active pin may have changed, so the quiet state must follow it.
+    this._applyQuiet();
   }
 
   refresh() {
@@ -225,6 +350,17 @@ export class InspectorOverlay {
       window.removeEventListener('scroll', this._onViewportChange, { passive: true });
       window.removeEventListener('resize', this._onViewportChange, { passive: true });
       this._onViewportChange = null;
+    }
+
+    this.shadowRoot.removeEventListener('focusin', this._onFocusIn);
+    this.shadowRoot.removeEventListener('focusout', this._onFocusOut);
+    window.removeEventListener('keydown', this._onKeyDown, true);
+    window.removeEventListener('keyup', this._onKeyUp, true);
+    window.removeEventListener('blur', this._onWindowBlur);
+
+    if (this._quietTimer) {
+      clearTimeout(this._quietTimer);
+      this._quietTimer = null;
     }
 
     for (const box of this.pinnedBoxes.values()) {

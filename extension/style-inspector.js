@@ -1127,17 +1127,18 @@ var StyleInspectorBundle = (() => {
   /*
    * Overlay hues stay the familiar DevTools ones \u2014 cyan for the hovered box,
    * amber for a pinned one, orange/green for the margin and padding bands \u2014 so
-   * they read the same way as the browser's own inspector.
+   * they read the same way as the browser's own inspector. Boxes are outline
+   * only (no soft fill): a tint over the element would falsify the very colors
+   * the user is tuning.
    */
   --si-hover: #06b6d4;
-  --si-hover-soft: rgba(6, 182, 212, 0.16);
   --si-hover-tag: #0891b2;
   --si-pin: #f59e0b;
-  --si-pin-soft: rgba(245, 158, 11, 0.1);
   --si-pin-tag: #d97706;
   --si-margin-band: rgba(246, 178, 107, 0.45);
   --si-padding-band: rgba(147, 196, 125, 0.45);
   --si-overlay-text: #ffffff;
+  --si-outline-w: 2px;
 
   --si-neutral: #ffffff;
   --si-neutral-hover: #d4d4d4;
@@ -1291,17 +1292,23 @@ var StyleInspectorBundle = (() => {
   height: 100vh;
   pointer-events: none !important;
   z-index: 2147483640;
+  transition: opacity 0.1s ease-out;
 }
 
 /*
  * Overlay boxes trace the real geometry of a host element, so they keep square
  * corners on purpose: a rounded outline would misreport where the box ends.
+ *
+ * They carry no fill and their border is drawn *outside* the element's border
+ * box (the JS side inflates the rect by --si-outline-w), so not a single pixel
+ * of the element is tinted or covered \u2014 the result of a tweak stays visible
+ * exactly as the page renders it.
  */
 .si-hover-box {
   position: fixed !important;
   box-sizing: border-box !important;
-  border: 2px solid var(--si-hover);
-  background: var(--si-hover-soft);
+  border: var(--si-outline-w) solid var(--si-hover);
+  background: transparent;
   border-radius: 0;
   transition: all 0.05s ease-out;
   pointer-events: none !important;
@@ -1352,11 +1359,27 @@ var StyleInspectorBundle = (() => {
 .si-pinned-box {
   position: fixed !important;
   box-sizing: border-box !important;
-  border: 2px dashed var(--si-pin);
-  background: var(--si-pin-soft);
+  border: var(--si-outline-w) dashed var(--si-pin);
+  background: transparent;
   border-radius: 0;
   pointer-events: none !important;
   z-index: 2147483640;
+  transition: opacity 0.12s ease-out;
+}
+
+/*
+ * While the user is editing a pinned element \u2014 a panel field has focus, a
+ * scrub handle is being dragged, or a value just changed \u2014 its outline fades
+ * out so the tweak can be judged against the untouched page. Other pins stay
+ * visible, so context is not lost.
+ */
+.si-pinned-box.si-quiet {
+  opacity: 0;
+}
+
+/* Hold H to peek at the page with every overlay hidden. */
+.si-overlay-container.si-peek {
+  opacity: 0;
 }
 
 .si-pinned-tag {
@@ -2979,6 +3002,14 @@ var StyleInspectorBundle = (() => {
   }
 
   // src/ui/overlay.js
+  var OUTLINE_WIDTH = 2;
+  var QUIET_AFTER_CHANGE_MS = 900;
+  function placeOutlineBox(box, rect) {
+    box.style.top = `${rect.top - OUTLINE_WIDTH}px`;
+    box.style.left = `${rect.left - OUTLINE_WIDTH}px`;
+    box.style.width = `${rect.width + OUTLINE_WIDTH * 2}px`;
+    box.style.height = `${rect.height + OUTLINE_WIDTH * 2}px`;
+  }
   var InspectorOverlay = class {
     /**
      * @param {ShadowRoot} shadowRoot
@@ -3006,6 +3037,9 @@ var StyleInspectorBundle = (() => {
       this.container.appendChild(this.hoverBox);
       this.shadowRoot.appendChild(this.container);
       this.pinnedBoxes = /* @__PURE__ */ new Map();
+      this._quietByFocus = false;
+      this._quietTimer = null;
+      this._peeking = false;
       this._bindEvents();
     }
     _bindEvents() {
@@ -3019,6 +3053,83 @@ var StyleInspectorBundle = (() => {
       this._onViewportChange = () => this.refresh();
       window.addEventListener("scroll", this._onViewportChange, { passive: true });
       window.addEventListener("resize", this._onViewportChange, { passive: true });
+      this._onFocusIn = (e) => this._setQuietByFocus(this._isPanelField(e.target));
+      this._onFocusOut = () => this._setQuietByFocus(false);
+      this.shadowRoot.addEventListener("focusin", this._onFocusIn);
+      this.shadowRoot.addEventListener("focusout", this._onFocusOut);
+      this.state.on("styleChanged", () => this._quietAfterChange());
+      this._onKeyDown = (e) => {
+        if (e.repeat || !this._isPeekKey(e) || this._isTypingAnywhere()) return;
+        this.setPeek(true);
+      };
+      this._onKeyUp = (e) => {
+        if (this._isPeekKey(e)) this.setPeek(false);
+      };
+      this._onWindowBlur = () => this.setPeek(false);
+      window.addEventListener("keydown", this._onKeyDown, true);
+      window.addEventListener("keyup", this._onKeyUp, true);
+      window.addEventListener("blur", this._onWindowBlur);
+    }
+    /**
+     * True for a control inside the adjustment panel whose focus means the user
+     * is editing a value.
+     * @param {EventTarget|null} target
+     */
+    _isPanelField(target) {
+      if (!(target instanceof Element)) return false;
+      if (!target.closest(".si-panel")) return false;
+      const tag = target.tagName;
+      return tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+    }
+    /**
+     * True when a keystroke would land in a text field, on the host page or
+     * inside the inspector, so a bare letter must not act as a shortcut.
+     */
+    _isTypingAnywhere() {
+      const check = (el) => {
+        if (!el) return false;
+        if (el.isContentEditable) return true;
+        const tag = el.tagName;
+        return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      };
+      return check(document.activeElement) || check(this.shadowRoot.activeElement);
+    }
+    _isPeekKey(e) {
+      if (e.altKey || e.ctrlKey || e.metaKey) return false;
+      return e.code === "KeyH" || e.key === "h" || e.key === "H";
+    }
+    /**
+     * Hides or shows every overlay at once.
+     * @param {boolean} on
+     */
+    setPeek(on) {
+      if (this._peeking === on) return;
+      this._peeking = on;
+      this.container.classList.toggle("si-peek", on);
+    }
+    _setQuietByFocus(on) {
+      if (this._quietByFocus === on) return;
+      this._quietByFocus = on;
+      this._applyQuiet();
+    }
+    _quietAfterChange() {
+      if (this._quietTimer) clearTimeout(this._quietTimer);
+      this._quietTimer = setTimeout(() => {
+        this._quietTimer = null;
+        this._applyQuiet();
+      }, QUIET_AFTER_CHANGE_MS);
+      this._applyQuiet();
+    }
+    /**
+     * Applies the quiet class to the active pin's box only; every other pinned
+     * outline keeps showing.
+     */
+    _applyQuiet() {
+      const quiet = this._quietByFocus || this._quietTimer !== null;
+      const activeId = this.state.activePinnedId;
+      for (const [id9, box] of this.pinnedBoxes.entries()) {
+        box.classList.toggle("si-quiet", quiet && id9 === activeId);
+      }
     }
     /**
      * Hides the hover outline and both box-model bands.
@@ -3096,10 +3207,7 @@ var StyleInspectorBundle = (() => {
       }
       this._updateBands(element, rect);
       this.hoverBox.style.display = "block";
-      this.hoverBox.style.top = `${rect.top}px`;
-      this.hoverBox.style.left = `${rect.left}px`;
-      this.hoverBox.style.width = `${rect.width}px`;
-      this.hoverBox.style.height = `${rect.height}px`;
+      placeOutlineBox(this.hoverBox, rect);
       const label = getElementLabel(element);
       this.hoverTag.textContent = label;
       if (rect.top < 26) {
@@ -3127,10 +3235,7 @@ var StyleInspectorBundle = (() => {
         }
         const rect = item.element.getBoundingClientRect();
         box.style.display = "block";
-        box.style.top = `${rect.top}px`;
-        box.style.left = `${rect.left}px`;
-        box.style.width = `${rect.width}px`;
-        box.style.height = `${rect.height}px`;
+        placeOutlineBox(box, rect);
       }
       for (const [id9, box] of this.pinnedBoxes.entries()) {
         if (!activeIds.has(id9)) {
@@ -3138,6 +3243,7 @@ var StyleInspectorBundle = (() => {
           this.pinnedBoxes.delete(id9);
         }
       }
+      this._applyQuiet();
     }
     refresh() {
       if (this.state.hoveredElement) {
@@ -3154,6 +3260,15 @@ var StyleInspectorBundle = (() => {
         window.removeEventListener("scroll", this._onViewportChange, { passive: true });
         window.removeEventListener("resize", this._onViewportChange, { passive: true });
         this._onViewportChange = null;
+      }
+      this.shadowRoot.removeEventListener("focusin", this._onFocusIn);
+      this.shadowRoot.removeEventListener("focusout", this._onFocusOut);
+      window.removeEventListener("keydown", this._onKeyDown, true);
+      window.removeEventListener("keyup", this._onKeyUp, true);
+      window.removeEventListener("blur", this._onWindowBlur);
+      if (this._quietTimer) {
+        clearTimeout(this._quietTimer);
+        this._quietTimer = null;
       }
       for (const box of this.pinnedBoxes.values()) {
         box.remove();

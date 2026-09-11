@@ -81,10 +81,13 @@ Then visit:
 | **Switch Active Pinned Element** | Click the element pill in the panel's pinned carousel |
 | **Remove Pinned Element** | Click the `×` icon on the element pill |
 | **Edit Element Text** | Type in the panel's **Content** box for the active element |
+| **Peek at the Bare Page** | Hold `H` to hide every outline; release to bring them back |
 | **Export All to Clipboard** | Click "Copy to Clipboard" in the panel footer |
 | **Save Export as a File** | Click "Download" in the panel footer |
 
-`Alt+Shift+S` is deliberately ignored while focus is inside an `input`, `textarea`, `select`, or `contenteditable` region of the host page, so the shortcut cannot fire mid-typing.
+`Alt+Shift+S` is deliberately ignored while focus is inside an `input`, `textarea`, `select`, or `contenteditable` region of the host page, so the shortcut cannot fire mid-typing. The same applies to `H`, on the host page and inside the panel alike.
+
+Outlines are drawn outside the element with no fill, so nothing you are tuning is ever tinted or covered. While a panel field has focus, or for a moment after any value changes, the active element's outline fades out on its own so the result can be judged against the untouched page.
 
 ---
 
