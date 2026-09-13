@@ -33,6 +33,8 @@ const INSTRUCTION = {
     "Use whichever styling mechanism the project already uses for that element — stylesheet, CSS module, utility classes, CSS-in-JS. Do not introduce inline styles unless the file already works that way.",
   computed:
     'The `From` column is the computed value at the time of inspection, not necessarily what the source declares. When a value comes from a shared class or a design token, change it where it is defined, or add a narrower override if that shared rule has other users.',
+  shared:
+    'A heading marked **Shared rule** is a class selector that matches several elements on purpose. Apply the change to the rule that styles the class so every match updates together. The narrower-override option above does not apply to these — do not scope the change down to one instance.',
   text:
     'A **Text** line is a copy change. It belongs to the template, component, or i18n catalogue that produces the string, never to a stylesheet.',
   notes: 'A **Note** line is context from whoever requested the change, and may constrain where the edit belongs.'
@@ -46,6 +48,27 @@ const INSTRUCTION = {
  */
 function isTestIdSelector(selector) {
   return /^\[data-testid=/.test(`${selector || ''}`);
+}
+
+/**
+ * Whether a pinned item asks for its change on every element sharing its
+ * classes rather than on the one element that was pinned.
+ * @param {object} item
+ * @returns {boolean}
+ */
+function isSharedScope(item) {
+  return Boolean(item && item.scope === 'class');
+}
+
+/**
+ * The one-line marker under a shared-rule heading, or an empty string.
+ * @param {object} item
+ * @returns {string}
+ */
+function sharedRuleLine(item) {
+  if (!isSharedScope(item)) return '';
+  const count = item.sharedCount > 1 ? ` — matches ${item.sharedCount} elements` : '';
+  return `**Shared rule**${count}. Change the rule for this class, not one instance.`;
 }
 
 /**
@@ -72,6 +95,7 @@ function instructionLines(items, options = {}) {
     INSTRUCTION.computed
   ];
 
+  if (list.some(isSharedScope)) lines.push(INSTRUCTION.shared);
   if (list.some(item => computeTextDiff(item))) lines.push(INSTRUCTION.text);
   if (list.some(item => item.notes && item.notes.trim())) lines.push(INSTRUCTION.notes);
 
@@ -221,6 +245,10 @@ export function formatElementSection(item, options, index) {
     lines.push('', `\`${item.label}\``);
   }
 
+  if (isSharedScope(item)) {
+    lines.push('', sharedRuleLine(item));
+  }
+
   if (diffs.length === 0 && !textDiff) {
     lines.push('', notes ? '_No style or copy changes recorded._' : '*(No style changes recorded)*');
   }
@@ -316,6 +344,10 @@ export function generateCssExport(items, options = {}) {
     const textDiff = computeTextDiff(item);
     const lines = [];
 
+    if (isSharedScope(item)) {
+      const count = item.sharedCount > 1 ? ` — matches ${item.sharedCount} elements` : '';
+      lines.push(`/* shared rule${count}: change the rule for this class, not one instance */`);
+    }
     if (textDiff) {
       lines.push(`/* text: ${JSON.stringify(textDiff.before)} → ${JSON.stringify(textDiff.after)} */`);
     }
@@ -367,6 +399,8 @@ export function generateJsonExport(items, options = {}) {
       return {
         selector: item.selector,
         label: item.label,
+        scope: isSharedScope(item) ? 'class' : 'element',
+        matches: isSharedScope(item) ? item.sharedCount || 1 : 1,
         text: textDiff ? { before: textDiff.before, after: textDiff.after } : null,
         changes: diffsFor(item, options),
         notes: item.notes || ''

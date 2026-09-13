@@ -113,6 +113,66 @@ export function buildTagClassFallback(element) {
 }
 
 /**
+ * Builds the selector that a shared stylesheet rule for this element would
+ * carry: tag plus its meaningful classes, with no path and no `:nth-of-type`.
+ *
+ * The unique path from `buildCssPath` is right when the user means "this one
+ * element", and wrong when they mean "every element styled like this one" —
+ * the navbar case, where changing one link is meant to change all of them.
+ * This is the selector for the second reading, along with how many elements
+ * it currently matches so the UI can tell the two cases apart.
+ *
+ * @param {Element} element
+ * @returns {{ selector: string, count: number } | null} null when the element
+ *   has no class to share
+ */
+export function buildSharedSelector(element) {
+  if (!element || element.nodeType !== 1) return null;
+
+  const classes = getMeaningfulClasses(element);
+  if (classes.length === 0) return null;
+
+  const escape = cls => (typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(cls) : cls);
+  const selector = `${element.tagName.toLowerCase()}.${classes.map(escape).join('.')}`;
+
+  const doc = element.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  let count = 1;
+  if (doc && typeof doc.querySelectorAll === 'function') {
+    try {
+      count = doc.querySelectorAll(selector).length;
+    } catch (err) {
+      count = 1;
+    }
+  }
+
+  return { selector, count };
+}
+
+/**
+ * Every element the shared selector currently matches, the pinned one first.
+ * Resolved on demand rather than stored, so a page that re-renders its list
+ * between two edits still gets every current match.
+ * @param {Element} element
+ * @param {string} selector
+ * @returns {Element[]}
+ */
+export function resolveSharedElements(element, selector) {
+  if (!element || !selector) return element ? [element] : [];
+
+  const doc = element.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  if (!doc || typeof doc.querySelectorAll !== 'function') return [element];
+
+  let matches = [];
+  try {
+    matches = Array.from(doc.querySelectorAll(selector));
+  } catch (err) {
+    return [element];
+  }
+
+  return [element, ...matches.filter(match => match !== element)];
+}
+
+/**
  * Filter out dynamic or inspector-related classes.
  * @param {Element} element
  * @returns {string[]}

@@ -15,7 +15,7 @@ import { SHORTHAND_GROUPS } from '../core/schema.js';
 import { EXPORT_UNITS } from '../core/css-value.js';
 import { siIcon } from './icons.js';
 import { SECTIONS } from './sections/index.js';
-import { section } from './sections/shared.js';
+import { section, segmented, bindSegmented } from './sections/shared.js';
 import * as alignRail from './sections/align.js';
 
 /**
@@ -283,6 +283,38 @@ export class InspectorPanel {
     };
   }
 
+  /**
+   * The "apply to" switch: this one element, or every element sharing its
+   * classes. Only rendered when the choice exists — a selector that matches
+   * one element has nothing to widen to.
+   * @param {object} item
+   * @returns {string}
+   */
+  _renderScopeControl(item) {
+    if (!item.sharedSelector || item.sharedCount < 2) return '';
+
+    const shared = item.sharedSelector.replace(/^[a-z0-9-]+/i, '');
+    return `
+      <div class="si-scope-row">
+        <span class="si-scope-label">Apply to</span>
+        ${segmented({
+          id: 'si-scope',
+          testId: 'style_inspector_panel_scope_control',
+          label: 'Apply changes to',
+          value: item.scope || 'element',
+          options: [
+            { value: 'element', label: 'This element', title: `Only this element (${item.elementSelector})` },
+            {
+              value: 'class',
+              label: `All ${shared} (${item.sharedCount})`,
+              title: `Every element matching ${item.sharedSelector} — ${item.sharedCount} on this page`
+            }
+          ]
+        })}
+      </div>
+    `;
+  }
+
   _renderActiveItemBody(item) {
     return `
       <div class="si-panel-body">
@@ -297,6 +329,8 @@ export class InspectorPanel {
                     aria-label="Copy this element's changes as markdown">${siIcon('Clipboard')}</button>
           </div>
         </div>
+
+        ${this._renderScopeControl(item)}
 
         ${alignRail.render(item)}
 
@@ -433,6 +467,11 @@ export class InspectorPanel {
         this.showToast('Selector copied!');
       };
     }
+
+    // Scope: this element only, or every element sharing its classes.
+    bindSegmented(this.panel, '#si-scope', value => {
+      this.state.setScope(activeItem.id, value);
+    });
 
     // "Link all sides" switches, for every four-sided group.
     this.panel.querySelectorAll('[data-switch]').forEach(el => {

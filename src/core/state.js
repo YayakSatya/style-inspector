@@ -2,7 +2,12 @@
  * Session State Management for Style Inspector
  */
 
-import { getElementSelector, getElementLabel } from './selector.js';
+import {
+  getElementSelector,
+  getElementLabel,
+  buildSharedSelector,
+  resolveSharedElements
+} from './selector.js';
 import {
   readElementStyles,
   applyStyleProperty,
@@ -129,6 +134,7 @@ export class InspectorState {
     const id = `pinned_${this._idCounter}`;
     const selector = getElementSelector(element);
     const label = getElementLabel(element);
+    const shared = buildSharedSelector(element);
     const baseline = readElementStyles(element);
     const current = { ...baseline };
     const text = readElementText(element);
@@ -139,6 +145,12 @@ export class InspectorState {
       element,
       selector,
       label,
+      // `selector` is whichever of these two the export should carry; the
+      // scope decides. `element` is the unique path, `class` the shared rule.
+      elementSelector: selector,
+      sharedSelector: shared ? shared.selector : null,
+      sharedCount: shared ? shared.count : 1,
+      scope: 'element',
       baseline,
       current,
       baselineText: text.text,
@@ -215,10 +227,12 @@ export class InspectorState {
         (item[group.linkFlag] && group.keys.includes(prop))
     );
 
+    const targets = this._styleTargets(item);
+
     if (linkedGroup) {
       for (const key of linkedGroup.keys) {
         item.current[key] = numVal;
-        applyStyleProperty(item.element, key, numVal, 'px');
+        for (const target of targets) applyStyleProperty(target, key, numVal, 'px');
       }
     } else {
       const textual = isTextualProperty(prop);
@@ -230,7 +244,7 @@ export class InspectorState {
         item.current.lineHeightSource = 'ratio';
       }
 
-      applyStyleProperty(item.element, prop, item.current[prop], 'px');
+      for (const target of targets) applyStyleProperty(target, prop, item.current[prop], 'px');
     }
 
     this.emit('styleChanged', { item, prop, value });
@@ -276,6 +290,52 @@ export class InspectorState {
   }
 
   /**
+   * Every element a pinned item's style edits should land on: the element
+   * itself, plus every other match of the shared selector when the scope is
+   * `class`. Text edits never fan out — copy belongs to one element.
+   * @param {object} item
+   * @returns {Element[]}
+   */
+  _styleTargets(item) {
+    if (item.scope !== 'class' || !item.sharedSelector) return [item.element];
+    return resolveSharedElements(item.element, item.sharedSelector);
+  }
+
+  /**
+   * Switches a pinned item between "this element only" and "every element
+   * sharing its classes". The live preview follows: widening re-applies the
+   * edits made so far to every match, narrowing reverts the other matches.
+   * @param {string} id
+   * @param {'element'|'class'} scope
+   */
+  setScope(id, scope) {
+    const item = this.pinnedItems.get(id);
+    if (!item) return;
+    if (scope === 'class' && !item.sharedSelector) return;
+    if (item.scope === scope) return;
+
+    const previousTargets = this._styleTargets(item);
+    item.scope = scope;
+    item.selector = scope === 'class' ? item.sharedSelector : item.elementSelector;
+    const nextTargets = this._styleTargets(item);
+
+    for (const target of previousTargets) {
+      if (target !== item.element && !nextTargets.includes(target)) resetElementStyles(target);
+    }
+
+    const changed = Object.keys(item.current).filter(
+      prop => item.current[prop] !== item.baseline[prop] && !prop.endsWith('Source')
+    );
+    for (const target of nextTargets) {
+      if (target === item.element) continue;
+      for (const prop of changed) applyStyleProperty(target, prop, item.current[prop], 'px');
+    }
+
+    this.emit('styleChanged', { item, scope });
+    this.emit('stateUpdated', this);
+  }
+
+  /**
    * Toggles the "link all sides" switch for a four-sided group.
    * @param {string} id
    * @param {string} groupName - 'padding', 'margin', or 'border-radius'
@@ -304,7 +364,7 @@ export class InspectorState {
     const item = this.pinnedItems.get(id);
     if (!item) return;
 
-    resetElementStyles(item.element);
+    for (const target of this._styleTargets(item)) resetElementStyles(target);
     resetElementText(item.element);
     item.current = { ...item.baseline };
     item.currentText = item.baselineText;
@@ -318,7 +378,7 @@ export class InspectorState {
    */
   resetAllStyles() {
     for (const item of this.pinnedItems.values()) {
-      resetElementStyles(item.element);
+      for (const target of this._styleTargets(item)) resetElementStyles(target);
       resetElementText(item.element);
       item.current = { ...item.baseline };
       item.currentText = item.baselineText;
@@ -332,7 +392,7 @@ export class InspectorState {
    */
   clearAll() {
     for (const item of this.pinnedItems.values()) {
-      resetElementStyles(item.element);
+      for (const target of this._styleTargets(item)) resetElementStyles(target);
       resetElementText(item.element);
     }
     this.pinnedItems.clear();

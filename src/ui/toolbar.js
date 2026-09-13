@@ -100,29 +100,45 @@ export class InspectorToolbar {
     this.banner.innerHTML = `
       <div class="si-banner-left">
         <span class="si-banner-icon">${siIcon('Zap')}</span>
-        <span><strong>Inspect Mode Active:</strong> Hover over an element, click to pin & adjust styles</span>
+        <span><strong>Inspect mode:</strong> hover an element, click to pin</span>
       </div>
       <div class="si-banner-keys">
-        <span><span class="si-key">Esc</span> Exit Mode</span>
-        <button class="si-banner-close">${siIcon('X')}</button>
+        <span><span class="si-key">Esc</span> exit</span>
       </div>
     `;
 
-    this.banner.querySelector('.si-banner-close').addEventListener('click', () => {
-      this.state.stopInspecting();
-    });
-
     this.shadowRoot.appendChild(this.banner);
+  }
+
+  /** How long the hint stays before fading out, in ms. */
+  static BANNER_TTL = 4000;
+
+  _showBanner() {
+    this._hideBanner();
+    this.banner.classList.remove('si-banner-hidden');
+    this.banner.style.display = 'flex';
+    this._bannerTimer = setTimeout(() => {
+      this.banner.classList.add('si-banner-hidden');
+      // Let the fade finish before removing it from layout.
+      this._bannerTimer = setTimeout(() => this._hideBanner(), 300);
+    }, InspectorToolbar.BANNER_TTL);
+  }
+
+  _hideBanner() {
+    clearTimeout(this._bannerTimer);
+    this._bannerTimer = null;
+    this.banner.style.display = 'none';
+    this.banner.classList.remove('si-banner-hidden');
   }
 
   _bindEvents() {
     this.state.on('modeChanged', ({ isInspecting }) => {
       if (isInspecting) {
         this.toggleBtn.classList.add('active');
-        this.banner.style.display = 'flex';
+        this._showBanner();
       } else {
         this.toggleBtn.classList.remove('active');
-        this.banner.style.display = 'none';
+        this._hideBanner();
       }
     });
 

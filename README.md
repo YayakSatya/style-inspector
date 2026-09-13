@@ -27,6 +27,7 @@
   - **Collapsible sections**: every section folds away; Corner Radius, Border and Effects start collapsed to keep the panel short.
 - **Box-Model Overlay**: Hovering shades the element's margin and padding bands the way DevTools does, so spacing is visible before you change it.
 - **Zero-Pollution Shadow DOM**: Built inside an isolated Shadow DOM (`mode: 'open'`), ensuring host website CSS (Tailwind, Bootstrap, etc.) never affects the tool and tool styles never leak into the host page. No remote fonts are loaded, so the panel renders correctly on sites with a strict Content-Security-Policy.
+- **Apply to This Element or the Whole Class**: When the pinned element shares its classes with others (a navbar link, a card in a grid), an **Apply to** switch widens the edit to every match. The live preview follows, and the export carries the shared selector (`a.nav-link`) instead of a one-element path (`nav > a.nav-link:nth-of-type(1)`), marked as a shared rule so the agent changes the class, not one instance.
 - **Per-Element Context & Notes**: Attach optional flags (e.g. *"instance of repeated card component"*, *"desktop breakpoint only"*).
 - **Session History & Reset**: **Reset this element** returns one pinned element to its baseline; the trash button in the footer reverts every element and discards the session. Text can be reverted independently of styles. (There is no separate "Reset All" button — it was the same revert as discarding the session, minus the unpin. `inspector.resetAll()` still does it from script.)
 - **Export in Three Formats**: **Markdown** (prose for an AI coding agent), **CSS** (a declaration block per selector, with the previous value kept as a comment), or **JSON** (structured, for tooling). Copy to clipboard or download as a file.
@@ -150,7 +151,7 @@ Pick **CSS** from the footer to get something you can paste straight into a styl
 }
 ```
 
-Pick **JSON** to consume the same information as data — `{ unit, instruction, elements: [{ selector, label, text, changes, notes }] }`.
+Pick **JSON** to consume the same information as data — `{ unit, instruction, elements: [{ selector, label, scope, matches, text, changes, notes }] }`.
 
 CSS cannot express a copy change, so `text:` appears as a comment above the block. There is no separate SCSS option: the selectors this tool emits are flat, so a SCSS file would be byte-identical to the CSS one.
 

@@ -92,6 +92,35 @@ var StyleInspectorBundle = (() => {
     }
     return tag;
   }
+  function buildSharedSelector(element) {
+    if (!element || element.nodeType !== 1) return null;
+    const classes = getMeaningfulClasses(element);
+    if (classes.length === 0) return null;
+    const escape = (cls) => typeof CSS !== "undefined" && CSS.escape ? CSS.escape(cls) : cls;
+    const selector = `${element.tagName.toLowerCase()}.${classes.map(escape).join(".")}`;
+    const doc = element.ownerDocument || (typeof document !== "undefined" ? document : null);
+    let count = 1;
+    if (doc && typeof doc.querySelectorAll === "function") {
+      try {
+        count = doc.querySelectorAll(selector).length;
+      } catch (err) {
+        count = 1;
+      }
+    }
+    return { selector, count };
+  }
+  function resolveSharedElements(element, selector) {
+    if (!element || !selector) return element ? [element] : [];
+    const doc = element.ownerDocument || (typeof document !== "undefined" ? document : null);
+    if (!doc || typeof doc.querySelectorAll !== "function") return [element];
+    let matches = [];
+    try {
+      matches = Array.from(doc.querySelectorAll(selector));
+    } catch (err) {
+      return [element];
+    }
+    return [element, ...matches.filter((match) => match !== element)];
+  }
   function getMeaningfulClasses(element) {
     if (!element.className || typeof element.className !== "string") return [];
     return element.className.trim().split(/\s+/).filter((cls) => {
@@ -909,6 +938,7 @@ var StyleInspectorBundle = (() => {
       const id9 = `pinned_${this._idCounter}`;
       const selector = getElementSelector(element);
       const label = getElementLabel(element);
+      const shared = buildSharedSelector(element);
       const baseline = readElementStyles(element);
       const current = { ...baseline };
       const text = readElementText(element);
@@ -918,6 +948,12 @@ var StyleInspectorBundle = (() => {
         element,
         selector,
         label,
+        // `selector` is whichever of these two the export should carry; the
+        // scope decides. `element` is the unique path, `class` the shared rule.
+        elementSelector: selector,
+        sharedSelector: shared ? shared.selector : null,
+        sharedCount: shared ? shared.count : 1,
+        scope: "element",
         baseline,
         current,
         baselineText: text.text,
@@ -981,10 +1017,11 @@ var StyleInspectorBundle = (() => {
           prop === group.allProp || item[group.linkFlag] && group.keys.includes(prop)
         )
       );
+      const targets = this._styleTargets(item);
       if (linkedGroup) {
         for (const key of linkedGroup.keys) {
           item.current[key] = numVal;
-          applyStyleProperty(item.element, key, numVal, "px");
+          for (const target of targets) applyStyleProperty(target, key, numVal, "px");
         }
       } else {
         const textual = isTextualProperty(prop);
@@ -992,7 +1029,7 @@ var StyleInspectorBundle = (() => {
         if (prop === "lineHeight") {
           item.current.lineHeightSource = "ratio";
         }
-        applyStyleProperty(item.element, prop, item.current[prop], "px");
+        for (const target of targets) applyStyleProperty(target, prop, item.current[prop], "px");
       }
       this.emit("styleChanged", { item, prop, value });
       this.emit("stateUpdated", this);
@@ -1029,6 +1066,46 @@ var StyleInspectorBundle = (() => {
       this.emit("stateUpdated", this);
     }
     /**
+     * Every element a pinned item's style edits should land on: the element
+     * itself, plus every other match of the shared selector when the scope is
+     * `class`. Text edits never fan out — copy belongs to one element.
+     * @param {object} item
+     * @returns {Element[]}
+     */
+    _styleTargets(item) {
+      if (item.scope !== "class" || !item.sharedSelector) return [item.element];
+      return resolveSharedElements(item.element, item.sharedSelector);
+    }
+    /**
+     * Switches a pinned item between "this element only" and "every element
+     * sharing its classes". The live preview follows: widening re-applies the
+     * edits made so far to every match, narrowing reverts the other matches.
+     * @param {string} id
+     * @param {'element'|'class'} scope
+     */
+    setScope(id9, scope) {
+      const item = this.pinnedItems.get(id9);
+      if (!item) return;
+      if (scope === "class" && !item.sharedSelector) return;
+      if (item.scope === scope) return;
+      const previousTargets = this._styleTargets(item);
+      item.scope = scope;
+      item.selector = scope === "class" ? item.sharedSelector : item.elementSelector;
+      const nextTargets = this._styleTargets(item);
+      for (const target of previousTargets) {
+        if (target !== item.element && !nextTargets.includes(target)) resetElementStyles(target);
+      }
+      const changed = Object.keys(item.current).filter(
+        (prop) => item.current[prop] !== item.baseline[prop] && !prop.endsWith("Source")
+      );
+      for (const target of nextTargets) {
+        if (target === item.element) continue;
+        for (const prop of changed) applyStyleProperty(target, prop, item.current[prop], "px");
+      }
+      this.emit("styleChanged", { item, scope });
+      this.emit("stateUpdated", this);
+    }
+    /**
      * Toggles the "link all sides" switch for a four-sided group.
      * @param {string} id
      * @param {string} groupName - 'padding', 'margin', or 'border-radius'
@@ -1051,7 +1128,7 @@ var StyleInspectorBundle = (() => {
     resetElement(id9) {
       const item = this.pinnedItems.get(id9);
       if (!item) return;
-      resetElementStyles(item.element);
+      for (const target of this._styleTargets(item)) resetElementStyles(target);
       resetElementText(item.element);
       item.current = { ...item.baseline };
       item.currentText = item.baselineText;
@@ -1064,7 +1141,7 @@ var StyleInspectorBundle = (() => {
      */
     resetAllStyles() {
       for (const item of this.pinnedItems.values()) {
-        resetElementStyles(item.element);
+        for (const target of this._styleTargets(item)) resetElementStyles(target);
         resetElementText(item.element);
         item.current = { ...item.baseline };
         item.currentText = item.baselineText;
@@ -1077,7 +1154,7 @@ var StyleInspectorBundle = (() => {
      */
     clearAll() {
       for (const item of this.pinnedItems.values()) {
-        resetElementStyles(item.element);
+        for (const target of this._styleTargets(item)) resetElementStyles(target);
         resetElementText(item.element);
       }
       this.pinnedItems.clear();
@@ -1216,28 +1293,44 @@ var StyleInspectorBundle = (() => {
 }
 
 /* Active Mode Banner */
+/*
+ * The inspect-mode hint. A compact pill rather than a full-width bar: the bar
+ * sat over the page's own navbar, which is the first thing most people try to
+ * inspect. The pill never takes pointer events, so whatever is underneath
+ * stays clickable, and it dismisses itself once the hint has been read.
+ */
 .si-banner {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 12px;
+  left: 50%;
   z-index: 2147483645;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
   background: var(--si-bg-raised);
-  border-bottom: 1px solid var(--si-line);
+  border: 1px solid var(--si-line);
+  border-radius: var(--si-r-pill);
   color: var(--si-text-dim);
-  padding: 6px 16px;
+  padding: 6px 14px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   font-size: 12px;
   font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  white-space: nowrap;
+  box-shadow: 0 8px 20px -8px rgba(0,0,0,0.5);
+  pointer-events: none;
   animation: siSlideDown 0.2s ease-out;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.si-banner.si-banner-hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
 }
 
 @keyframes siSlideDown {
-  from { transform: translateY(-100%); }
-  to { transform: translateY(0); }
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .si-banner-left {
@@ -1268,20 +1361,6 @@ var StyleInspectorBundle = (() => {
   padding: 1px 5px;
 }
 
-.si-banner-close {
-  background: transparent;
-  border: none;
-  color: var(--si-text-dim);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--si-r-sm);
-  font-size: 11px;
-  font-weight: 600;
-}
-.si-banner-close:hover {
-  background: var(--si-fill);
-  color: var(--si-text);
-}
 
 /* Hover & Pinned Overlays */
 .si-overlay-container {
@@ -1574,6 +1653,22 @@ var StyleInspectorBundle = (() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 280px;
+}
+
+/* Scope: this element vs. every element sharing its classes */
+.si-scope-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Sits with the selector card above it, not as a section of its own. */
+  margin-top: -8px;
+}
+
+.si-scope-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--si-text-dim);
 }
 
 .si-section {
@@ -3281,7 +3376,7 @@ var StyleInspectorBundle = (() => {
   };
 
   // src/ui/toolbar.js
-  var InspectorToolbar = class {
+  var InspectorToolbar = class _InspectorToolbar {
     /**
      * @param {ShadowRoot} shadowRoot
      * @param {import('../core/state.js').InspectorState} state
@@ -3359,26 +3454,39 @@ var StyleInspectorBundle = (() => {
       this.banner.innerHTML = `
       <div class="si-banner-left">
         <span class="si-banner-icon">${siIcon("Zap")}</span>
-        <span><strong>Inspect Mode Active:</strong> Hover over an element, click to pin & adjust styles</span>
+        <span><strong>Inspect mode:</strong> hover an element, click to pin</span>
       </div>
       <div class="si-banner-keys">
-        <span><span class="si-key">Esc</span> Exit Mode</span>
-        <button class="si-banner-close">${siIcon("X")}</button>
+        <span><span class="si-key">Esc</span> exit</span>
       </div>
     `;
-      this.banner.querySelector(".si-banner-close").addEventListener("click", () => {
-        this.state.stopInspecting();
-      });
       this.shadowRoot.appendChild(this.banner);
+    }
+    /** How long the hint stays before fading out, in ms. */
+    static BANNER_TTL = 4e3;
+    _showBanner() {
+      this._hideBanner();
+      this.banner.classList.remove("si-banner-hidden");
+      this.banner.style.display = "flex";
+      this._bannerTimer = setTimeout(() => {
+        this.banner.classList.add("si-banner-hidden");
+        this._bannerTimer = setTimeout(() => this._hideBanner(), 300);
+      }, _InspectorToolbar.BANNER_TTL);
+    }
+    _hideBanner() {
+      clearTimeout(this._bannerTimer);
+      this._bannerTimer = null;
+      this.banner.style.display = "none";
+      this.banner.classList.remove("si-banner-hidden");
     }
     _bindEvents() {
       this.state.on("modeChanged", ({ isInspecting }) => {
         if (isInspecting) {
           this.toggleBtn.classList.add("active");
-          this.banner.style.display = "flex";
+          this._showBanner();
         } else {
           this.toggleBtn.classList.remove("active");
-          this.banner.style.display = "none";
+          this._hideBanner();
         }
       });
       this.state.on("stateUpdated", () => {
@@ -3400,11 +3508,20 @@ var StyleInspectorBundle = (() => {
     selectorMixed: "Each heading is a CSS selector for the element as it appears in the rendered DOM. Some are attribute selectors present verbatim in the source; others are structural paths you will need to trace.",
     mechanism: "Use whichever styling mechanism the project already uses for that element \u2014 stylesheet, CSS module, utility classes, CSS-in-JS. Do not introduce inline styles unless the file already works that way.",
     computed: "The `From` column is the computed value at the time of inspection, not necessarily what the source declares. When a value comes from a shared class or a design token, change it where it is defined, or add a narrower override if that shared rule has other users.",
+    shared: "A heading marked **Shared rule** is a class selector that matches several elements on purpose. Apply the change to the rule that styles the class so every match updates together. The narrower-override option above does not apply to these \u2014 do not scope the change down to one instance.",
     text: "A **Text** line is a copy change. It belongs to the template, component, or i18n catalogue that produces the string, never to a stylesheet.",
     notes: "A **Note** line is context from whoever requested the change, and may constrain where the edit belongs."
   };
   function isTestIdSelector(selector) {
     return /^\[data-testid=/.test(`${selector || ""}`);
+  }
+  function isSharedScope(item) {
+    return Boolean(item && item.scope === "class");
+  }
+  function sharedRuleLine(item) {
+    if (!isSharedScope(item)) return "";
+    const count = item.sharedCount > 1 ? ` \u2014 matches ${item.sharedCount} elements` : "";
+    return `**Shared rule**${count}. Change the rule for this class, not one instance.`;
   }
   function instructionLines(items, options = {}) {
     const custom = (options.instruction || "").trim();
@@ -3416,6 +3533,7 @@ var StyleInspectorBundle = (() => {
       INSTRUCTION.mechanism,
       INSTRUCTION.computed
     ];
+    if (list.some(isSharedScope)) lines.push(INSTRUCTION.shared);
     if (list.some((item) => computeTextDiff(item))) lines.push(INSTRUCTION.text);
     if (list.some((item) => item.notes && item.notes.trim())) lines.push(INSTRUCTION.notes);
     return lines;
@@ -3491,6 +3609,9 @@ var StyleInspectorBundle = (() => {
     if (item.label && !heading.includes(item.label)) {
       lines.push("", `\`${item.label}\``);
     }
+    if (isSharedScope(item)) {
+      lines.push("", sharedRuleLine(item));
+    }
     if (diffs.length === 0 && !textDiff) {
       lines.push("", notes ? "_No style or copy changes recorded._" : "*(No style changes recorded)*");
     }
@@ -3550,6 +3671,10 @@ var StyleInspectorBundle = (() => {
       const diffs = diffsFor(item, options);
       const textDiff = computeTextDiff(item);
       const lines = [];
+      if (isSharedScope(item)) {
+        const count = item.sharedCount > 1 ? ` \u2014 matches ${item.sharedCount} elements` : "";
+        lines.push(`/* shared rule${count}: change the rule for this class, not one instance */`);
+      }
       if (textDiff) {
         lines.push(`/* text: ${JSON.stringify(textDiff.before)} \u2192 ${JSON.stringify(textDiff.after)} */`);
       }
@@ -3588,6 +3713,8 @@ var StyleInspectorBundle = (() => {
         return {
           selector: item.selector,
           label: item.label,
+          scope: isSharedScope(item) ? "class" : "element",
+          matches: isSharedScope(item) ? item.sharedCount || 1 : 1,
           text: textDiff ? { before: textDiff.before, after: textDiff.after } : null,
           changes: diffsFor(item, options),
           notes: item.notes || ""
@@ -4814,6 +4941,36 @@ var StyleInspectorBundle = (() => {
         instruction: (this.state.customInstruction || "").trim()
       };
     }
+    /**
+     * The "apply to" switch: this one element, or every element sharing its
+     * classes. Only rendered when the choice exists — a selector that matches
+     * one element has nothing to widen to.
+     * @param {object} item
+     * @returns {string}
+     */
+    _renderScopeControl(item) {
+      if (!item.sharedSelector || item.sharedCount < 2) return "";
+      const shared = item.sharedSelector.replace(/^[a-z0-9-]+/i, "");
+      return `
+      <div class="si-scope-row">
+        <span class="si-scope-label">Apply to</span>
+        ${segmented({
+        id: "si-scope",
+        testId: "style_inspector_panel_scope_control",
+        label: "Apply changes to",
+        value: item.scope || "element",
+        options: [
+          { value: "element", label: "This element", title: `Only this element (${item.elementSelector})` },
+          {
+            value: "class",
+            label: `All ${shared} (${item.sharedCount})`,
+            title: `Every element matching ${item.sharedSelector} \u2014 ${item.sharedCount} on this page`
+          }
+        ]
+      })}
+      </div>
+    `;
+    }
     _renderActiveItemBody(item) {
       return `
       <div class="si-panel-body">
@@ -4828,6 +4985,8 @@ var StyleInspectorBundle = (() => {
                     aria-label="Copy this element's changes as markdown">${siIcon("Clipboard")}</button>
           </div>
         </div>
+
+        ${this._renderScopeControl(item)}
 
         ${render9(item)}
 
@@ -4941,6 +5100,9 @@ var StyleInspectorBundle = (() => {
           this.showToast("Selector copied!");
         };
       }
+      bindSegmented(this.panel, "#si-scope", (value) => {
+        this.state.setScope(activeItem.id, value);
+      });
       this.panel.querySelectorAll("[data-switch]").forEach((el) => {
         el.onclick = () => {
           const group = el.getAttribute("data-switch");
@@ -5082,7 +5244,7 @@ var StyleInspectorBundle = (() => {
       this.shadowRoot.appendChild(styleEl);
       const styleFix = document.createElement("style");
       styleFix.textContent = `
-      .si-toolbar, .si-panel, .si-banner, .si-toast {
+      .si-toolbar, .si-panel, .si-toast {
         pointer-events: auto !important;
       }
       .si-overlay-container, .si-hover-box, .si-hover-tag, .si-pinned-box, .si-pinned-tag,

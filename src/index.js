@@ -56,7 +56,7 @@ export class StyleInspector {
     // Make interactive children respond to pointer events
     const styleFix = document.createElement('style');
     styleFix.textContent = `
-      .si-toolbar, .si-panel, .si-banner, .si-toast {
+      .si-toolbar, .si-panel, .si-toast {
         pointer-events: auto !important;
       }
       .si-overlay-container, .si-hover-box, .si-hover-tag, .si-pinned-box, .si-pinned-tag,

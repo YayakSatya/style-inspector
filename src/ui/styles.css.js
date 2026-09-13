@@ -136,28 +136,44 @@ export const inspectorStyles = `
 }
 
 /* Active Mode Banner */
+/*
+ * The inspect-mode hint. A compact pill rather than a full-width bar: the bar
+ * sat over the page's own navbar, which is the first thing most people try to
+ * inspect. The pill never takes pointer events, so whatever is underneath
+ * stays clickable, and it dismisses itself once the hint has been read.
+ */
 .si-banner {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 12px;
+  left: 50%;
   z-index: 2147483645;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
   background: var(--si-bg-raised);
-  border-bottom: 1px solid var(--si-line);
+  border: 1px solid var(--si-line);
+  border-radius: var(--si-r-pill);
   color: var(--si-text-dim);
-  padding: 6px 16px;
+  padding: 6px 14px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   font-size: 12px;
   font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  white-space: nowrap;
+  box-shadow: 0 8px 20px -8px rgba(0,0,0,0.5);
+  pointer-events: none;
   animation: siSlideDown 0.2s ease-out;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.si-banner.si-banner-hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
 }
 
 @keyframes siSlideDown {
-  from { transform: translateY(-100%); }
-  to { transform: translateY(0); }
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .si-banner-left {
@@ -188,20 +204,6 @@ export const inspectorStyles = `
   padding: 1px 5px;
 }
 
-.si-banner-close {
-  background: transparent;
-  border: none;
-  color: var(--si-text-dim);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--si-r-sm);
-  font-size: 11px;
-  font-weight: 600;
-}
-.si-banner-close:hover {
-  background: var(--si-fill);
-  color: var(--si-text);
-}
 
 /* Hover & Pinned Overlays */
 .si-overlay-container {
@@ -494,6 +496,22 @@ export const inspectorStyles = `
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 280px;
+}
+
+/* Scope: this element vs. every element sharing its classes */
+.si-scope-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Sits with the selector card above it, not as a section of its own. */
+  margin-top: -8px;
+}
+
+.si-scope-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--si-text-dim);
 }
 
 .si-section {
